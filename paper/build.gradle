@@ -1,0 +1,84 @@
+plugins {
+    id 'java'
+    id 'maven-publish'
+    id 'com.gradleup.shadow' version '9.3.0'
+}
+
+group = project.maven_group
+version = project.mod_version + "-" + project.plugin_version
+
+base {
+    archivesName = "${project.archives_base_name}-paper"
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+    maven { url = 'https://repo.opencollab.dev/main/' }
+}
+
+dependencies {
+
+    
+    // Common module (shared config, database pooling, logging)
+    implementation project(':common')
+    
+    // Paper-specific database dependency (JDBC)
+    implementation 'org.xerial:sqlite-jdbc:3.47.1.0'
+
+    compileOnly "io.papermc.paper:paper-api:${paper_api}"
+    compileOnly 'org.geysermc.geyser:api:2.9.0-SNAPSHOT'
+    compileOnly 'org.geysermc.floodgate:api:2.2.4-SNAPSHOT'
+
+    compileOnly 'com.zaxxer:HikariCP:6.2.1'
+    compileOnly 'org.yaml:snakeyaml:2.0'
+    compileOnly 'org.slf4j:slf4j-api:2.0.16'
+    
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+}
+
+def projectVersion = project.version
+processResources {
+    dependsOn rootProject.tasks.named('copyCert')
+    filteringCharset = 'UTF-8'
+    filesMatching(['paper-plugin.yml']) { 
+        filter { line -> line.replace('${version}', projectVersion) } 
+    }
+}
+
+
+shadowJar {
+    archiveClassifier.set('')
+
+    relocate 'com.zaxxer.hikari', 'me.mklv.handshaker.libs.hikari'
+    
+    dependencies {
+        exclude(dependency('io.papermc.paper:paper-api'))
+        exclude(dependency('org.xerial:sqlite-jdbc'))
+        exclude(dependency('org.slf4j:slf4j-api'))
+        exclude(dependency('com.google.code.gson:gson'))
+    }
+}
+
+
+jar {
+    enabled = false
+}
+
+tasks.named('shadowJar') {
+    enabled = true
+}
+
+
+tasks.named('assemble') {
+    dependsOn shadowJar
+}

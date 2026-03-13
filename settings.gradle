@@ -1,0 +1,37 @@
+pluginManagement {
+	repositories {
+		maven {
+			name = 'Fabric'
+			url = 'https://maven.fabricmc.net/'
+		}
+		maven {
+			name = 'NeoForged'
+			url = 'https://maven.neoforged.net/releases'
+		}
+		maven {
+        name = "ParchmentMC"
+        url = "https://maven.parchmentmc.org"
+    	}
+		mavenCentral()
+		gradlePluginPortal()
+	}
+	
+	plugins {
+		id 'fabric-loom' version "${loom_version}"
+		id 'net.neoforged.moddev' version '2.0.139'
+		id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+	}
+}
+
+// // include 'velton' // Velton addon (Source code is private & deprecated)
+
+include 'common'
+
+include 'handlib:1.21:fabric'
+include 'handlib:1.21:neoforge'
+include 'handlib:1.21.11:fabric'
+include 'handlib:1.21.11:neoforge'
+
+include 'paper'
+include 'fabric'
+include 'neoforge'
