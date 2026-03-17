@@ -28,8 +28,8 @@ public class HandShaker implements ClientModInitializer {
 		payloadService.precomputeAtBoot();
 
 		// Register payload types for 1.21 custom payload system
-		PayloadTypeRegistry.playC2S().register(ModsListPayload.TYPE, ModsListPayload.CODEC);
-		PayloadTypeRegistry.playC2S().register(IntegrityPayload.TYPE, IntegrityPayload.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(ModsListPayload.TYPE, ModsListPayload.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(IntegrityPayload.TYPE, IntegrityPayload.CODEC);
 
 		// Register event handlers to send data on server join
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {

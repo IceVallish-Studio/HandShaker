@@ -38,7 +38,6 @@ import java.util.concurrent.CompletableFuture;
 public class HandShakerCommand {
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        @SuppressWarnings("null")
         var handshaker = Commands.literal("handshaker")
             .requires(NeoForgeVersionCompat.ownerPermission())
             .executes(HandShakerCommand::showHelp)
@@ -138,7 +137,6 @@ public class HandShakerCommand {
         dispatcher.register(handshaker);
     }
 
-    @SuppressWarnings("null")
     private static int showHelp(CommandContext<CommandSourceStack> ctx) {
         ctx.getSource().sendSystemMessage(Component.literal("HandShaker v7 Commands").withColor(0xFFAA00).withStyle(ChatFormatting.BOLD));
         ctx.getSource().sendSystemMessage(Component.empty());
@@ -156,7 +154,6 @@ public class HandShakerCommand {
         return Command.SINGLE_SUCCESS;
     }
 
-    @SuppressWarnings("null")
     private static int showDiagnostic(CommandContext<CommandSourceStack> ctx) {
         ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
         if (!config.isDiagnosticCommandEnabled()) {
@@ -179,7 +176,6 @@ public class HandShakerCommand {
         return Command.SINGLE_SUCCESS;
     }
 
-    @SuppressWarnings("null")
     private static int exportDiagnosticReport(CommandContext<CommandSourceStack> ctx) {
         ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
         if (!config.isDiagnosticCommandEnabled()) {
@@ -203,7 +199,7 @@ public class HandShakerCommand {
         return Command.SINGLE_SUCCESS;
     }
 
-    @SuppressWarnings("null")
+
     private static int exportSnapshot(CommandContext<CommandSourceStack> ctx) {
         ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
         if (!config.isExportCommandEnabled()) {
@@ -240,7 +236,7 @@ public class HandShakerCommand {
         return showConfiguredModsWithPageNumber(ctx, page);
     }
 
-    @SuppressWarnings("null")
+
     private static int showConfiguredModsWithPageNumber(CommandContext<CommandSourceStack> ctx, int pageNum) {
         ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
         Map<String, ConfigState.ModConfig> mods = config.getModConfigMap();
@@ -333,7 +329,7 @@ public class HandShakerCommand {
         return showAllModsWithPageNumber(ctx, page);
     }
 
-    @SuppressWarnings("null")
+
     private static int showAllModsWithPageNumber(CommandContext<CommandSourceStack> ctx, int pageNum) {
         ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
 
@@ -410,7 +406,7 @@ public class HandShakerCommand {
         return Command.SINGLE_SUCCESS;
     }
 
-    @SuppressWarnings("null")
+
     private static int showModInfo(CommandContext<CommandSourceStack> ctx) {
         String modName = StringArgumentType.getString(ctx, "modName");
         PlayerHistoryDatabase db = HandShakerServerMod.getInstance().getPlayerHistoryDb();
@@ -432,7 +428,7 @@ public class HandShakerCommand {
         return showPlayerHistoryWithPageNumber(ctx, page);
     }
 
-    @SuppressWarnings("null")
+
     private static int showPlayerHistoryWithPageNumber(CommandContext<CommandSourceStack> ctx, int pageNum) {
         String playerName = StringArgumentType.getString(ctx, "playerName");
         PlayerHistoryDatabase db = HandShakerServerMod.getInstance().getPlayerHistoryDb();
@@ -456,7 +452,7 @@ public class HandShakerCommand {
         return Command.SINGLE_SUCCESS;
     }
 
-    @SuppressWarnings("null")
+
     private static int showConfig(CommandContext<CommandSourceStack> ctx) {
         ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
         String title = "HandShaker Configuration";
@@ -485,7 +481,7 @@ public class HandShakerCommand {
         return setConfigValue(ctx, param);
     }
 
-    @SuppressWarnings("null")
+
     private static int setConfigValue(CommandContext<CommandSourceStack> ctx, String param) {
         String value = StringArgumentType.getString(ctx, "value");
         ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
@@ -517,7 +513,7 @@ public class HandShakerCommand {
         return Command.SINGLE_SUCCESS;
     }
 
-    @SuppressWarnings("null")
+
     private static int setMode(CommandContext<CommandSourceStack> ctx) {
         String list = StringArgumentType.getString(ctx, "list");
         String action = StringArgumentType.getString(ctx, "action");
@@ -668,7 +664,7 @@ public class HandShakerCommand {
         return Command.SINGLE_SUCCESS;
     }
 
-    @SuppressWarnings("null")
+
     private static int removeMod(CommandContext<CommandSourceStack> ctx) {
         String mod = StringArgumentType.getString(ctx, "mod");
         ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
@@ -716,7 +712,7 @@ public class HandShakerCommand {
         return Command.SINGLE_SUCCESS;
     }
 
-    @SuppressWarnings("null")
+
     private static int listIgnoredMods(CommandContext<CommandSourceStack> ctx) {
         ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
         ctx.getSource().sendSystemMessage(Component.literal("Ignored Mods (" + config.getIgnoredMods().size() + ")").withColor(0xFFAA00).withStyle(ChatFormatting.BOLD));
@@ -758,7 +754,7 @@ public class HandShakerCommand {
         );
     }
 
-    @SuppressWarnings("null")
+
     private static void renderModInfo(CommandContext<CommandSourceStack> ctx, InfoCommandOperations.ModInfoResult result) {
         if (!result.success()) {
             ctx.getSource().sendFailure(Component.literal(result.error()));
@@ -787,7 +783,7 @@ public class HandShakerCommand {
         ctx.getSource().sendSystemMessage(sectionFooter(title));
     }
 
-    @SuppressWarnings("null")
+
     private static void renderPlayerHistory(CommandContext<CommandSourceStack> ctx, String playerName, InfoCommandOperations.PlayerHistoryResult result) {
         if (!result.success()) {
             ctx.getSource().sendFailure(Component.literal(result.error()));
@@ -856,7 +852,7 @@ public class HandShakerCommand {
         return showPlayerMods(ctx, page);
     }
 
-    @SuppressWarnings("null")
+
     private static int showPlayerMods(CommandContext<CommandSourceStack> ctx, int pageNum) {
         String playerName = StringArgumentType.getString(ctx, "player");
         ServerPlayer player = ctx.getSource().getServer().getPlayerList().getPlayerByName(playerName);
@@ -930,12 +926,12 @@ public class HandShakerCommand {
         return Command.SINGLE_SUCCESS;
     }
 
-    @SuppressWarnings("null")
+
     private static MutableComponent sectionHeader(String title) {
         return Component.literal(sectionHeaderText(title)).withColor(0xFFAA00).withStyle(ChatFormatting.BOLD);
     }
 
-    @SuppressWarnings("null")
+
     private static MutableComponent sectionFooter(String title) {
         return Component.literal(CommandVisualOperations.sectionFooterText(title)).withColor(0xFFAA00).withStyle(ChatFormatting.BOLD);
     }
@@ -944,7 +940,7 @@ public class HandShakerCommand {
         return CommandVisualOperations.sectionHeaderText(title);
     }
 
-    @SuppressWarnings("null")
+
     private static void sendPaginationNavigation(
         CommandContext<CommandSourceStack> ctx,
         boolean hasPrevious,
@@ -975,7 +971,7 @@ public class HandShakerCommand {
         ctx.getSource().sendSystemMessage(prev.append(Component.literal(" ")).append(next));
     }
 
-    @SuppressWarnings("null")
+
     private static MutableComponent modeTag(String mode) {
         String label = CommandHelper.modeTagLabel(mode);
         if (mode == null) {
@@ -1098,7 +1094,7 @@ public class HandShakerCommand {
         return builder.buildFuture();
     }
 
-    @SuppressWarnings("null")
+
     private static CompletableFuture<Suggestions> suggestPlayers(CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
         List<String> playerNames = CommandDataOperations.collectPlayerNames(
             ctx.getSource().getServer().getPlayerList().getPlayers(),

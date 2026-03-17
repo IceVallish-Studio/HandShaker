@@ -138,7 +138,6 @@ public class ConfigManager extends CommonConfigManagerBase {
         saveCommon(configDir.toPath(), saveLogger);
     }
 
-    @SuppressWarnings("null")
     public void checkPlayer(ServerPlayer player, ClientInfo info) {
         CommonPlayerCheckEngine.checkPlayer(
             this,

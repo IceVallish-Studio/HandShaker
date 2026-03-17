@@ -69,13 +69,17 @@ public final class CommonPlayerCheckEngine {
         if (config.getIntegrityMode() == IntegrityMode.SIGNED && hasMod) {
             if (info.integrityNonce() == null && isTimeoutCheck) {
                 bridge.warn("Kicking " + playerName + " - mod client but no integrity data sent in SIGNED mode");
-                bridge.disconnect(config.getInvalidSignatureKickMessage());
-                return;
+                if (executeActions) {
+                    bridge.disconnect(config.getInvalidSignatureKickMessage());
+                    return;
+                }
             }
             if (info.integrityNonce() != null && !info.signatureVerified()) {
                 bridge.warn("Kicking " + playerName + " - integrity check FAILED in SIGNED mode");
-                bridge.disconnect(config.getInvalidSignatureKickMessage());
-                return;
+                if (executeActions) {
+                    bridge.disconnect(config.getInvalidSignatureKickMessage());
+                    return;
+                }
             }
         }
 

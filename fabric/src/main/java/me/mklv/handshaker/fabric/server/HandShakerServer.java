@@ -46,6 +46,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -62,7 +63,7 @@ public class HandShakerServer implements DedicatedServerModInitializer {
     private SignatureVerifier signatureVerifier;
     private LocalRestApiServer localRestApiServer;
     private WebhookDispatcher webhookDispatcher;
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     public static HandShakerServer getInstance() {
         return instance;
@@ -187,7 +188,7 @@ public class HandShakerServer implements DedicatedServerModInitializer {
                 public void syncPlayerMods(UUID playerId, String playerName, Set<String> mods) {
                     if (playerHistoryDb != null) {
                         if (configManager.isAsyncDatabaseOperations() && configManager.isRuntimeCache()) {
-                            scheduler.submit(() -> {
+                            submitSafely(() -> {
                                 try {
                                     playerHistoryDb.syncPlayerMods(playerId, playerName, mods);
                                 } catch (Exception e) {
@@ -216,10 +217,11 @@ public class HandShakerServer implements DedicatedServerModInitializer {
 
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             this.server = server;
-            scheduler.scheduleAtFixedRate(() -> payloadValidator.cleanupExpiredNoncesNow(), 5, 5, TimeUnit.MINUTES);
+            ensureSchedulerActive();
+            scheduleAtFixedRateSafely(() -> payloadValidator.cleanupExpiredNoncesNow(), 5, 5, TimeUnit.MINUTES);
             int days = configManager.getDeleteHistoryDays();
             if (days > 0) {
-                scheduler.scheduleAtFixedRate(() -> {
+                scheduleAtFixedRateSafely(() -> {
                     if (playerHistoryDb != null) {
                         playerHistoryDb.deleteOldHistory(configManager.getDeleteHistoryDays());
                     }
@@ -242,9 +244,9 @@ public class HandShakerServer implements DedicatedServerModInitializer {
         });
 
         // Register payload types
-        PayloadTypeRegistry.playC2S().register(HandShaker.ModsListPayload.TYPE, HandShaker.ModsListPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(HandShaker.IntegrityPayload.TYPE, HandShaker.IntegrityPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(VeltonPayload.TYPE, VeltonPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(HandShaker.ModsListPayload.TYPE, HandShaker.ModsListPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(HandShaker.IntegrityPayload.TYPE, HandShaker.IntegrityPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(VeltonPayload.TYPE, VeltonPayload.CODEC);
 
         // Register payload handlers
         ServerPlayNetworking.registerGlobalReceiver(HandShaker.ModsListPayload.TYPE, (payload, context) -> {
@@ -303,7 +305,7 @@ public class HandShakerServer implements DedicatedServerModInitializer {
 
         // Register player lifecycle events 
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
-            scheduler.schedule(() -> {
+            scheduleSafely(() -> {
                 server.execute(() -> {
                     if (handler.player.connection == null) return; // Player disconnected
                     ClientInfo info = clients.computeIfAbsent(handler.player.getUUID(), uuid -> new ClientInfo(Collections.emptySet(), false, false, null, null, null));
@@ -342,6 +344,40 @@ public class HandShakerServer implements DedicatedServerModInitializer {
 
     public java.util.concurrent.ScheduledExecutorService getScheduler() {
         return scheduler;
+    }
+
+    private void ensureSchedulerActive() {
+        if (scheduler.isShutdown() || scheduler.isTerminated()) {
+            scheduler = Executors.newSingleThreadScheduledExecutor();
+            LOGGER.info("Scheduler recreated for new server session");
+        }
+    }
+
+    private void submitSafely(Runnable task) {
+        ensureSchedulerActive();
+        try {
+            scheduler.submit(task);
+        } catch (RejectedExecutionException ex) {
+            LOGGER.warn("Scheduler rejected async task (state transition), skipping task");
+        }
+    }
+
+    private void scheduleSafely(Runnable task, long delay, TimeUnit unit) {
+        ensureSchedulerActive();
+        try {
+            scheduler.schedule(task, delay, unit);
+        } catch (RejectedExecutionException ex) {
+            LOGGER.warn("Scheduler rejected delayed task (state transition), skipping task");
+        }
+    }
+
+    private void scheduleAtFixedRateSafely(Runnable task, long initialDelay, long period, TimeUnit unit) {
+        ensureSchedulerActive();
+        try {
+            scheduler.scheduleAtFixedRate(task, initialDelay, period, unit);
+        } catch (RejectedExecutionException ex) {
+            LOGGER.warn("Scheduler rejected repeating task (state transition), skipping task");
+        }
     }
 
     public void checkAllPlayers() {

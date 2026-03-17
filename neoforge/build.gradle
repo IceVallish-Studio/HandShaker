@@ -2,10 +2,8 @@ plugins {
     id 'net.neoforged.moddev'
 }
 
-def handlibNeoJar = project(':handlib:1.21:neoforge').layout.buildDirectory.file("libs/${rootProject.archives_base_name}-handlib-neoforge-1.21-${rootProject.mod_version}.jar")
-
 base {
-	archivesName = "${archives_base_name}-neo-${project.mod_version}"
+	archivesName = "${mod_id}-neo-${project.mod_version}"
 }
 
 version = ''
@@ -55,10 +53,10 @@ repositories {
 
 dependencies {
     // Common module (shared config, database pooling, logging)
+    implementation("me.mklv:handlib-${rootProject.handlib_version}")
+    jarJar("me.mklv:handlib-${rootProject.handlib_version}")
     jarJar(project(':common'))
     implementation(project(':common'))
-    implementation(files(handlibNeoJar))
-    runtimeOnly(files(handlibNeoJar))
     
     // NeoForge-specific database dependency (H2)
     jarJar('com.h2database:h2:2.2.224')
@@ -82,16 +80,12 @@ dependencies {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-    options.release = 21
-}
-
-tasks.named('compileJava').configure {
-    dependsOn(':handlib:1.21:neoforge:assemble')
+    options.release = 25
 }
 
 tasks.named('processResources') {
     var replaceProperties = [
-        file: [jarVersion: "${project.mod_version}-1.21.x"]
+        file: [jarVersion: "${project.mod_version}-26.1"]
     ]
     inputs.properties replaceProperties
     from(project(':common').sourceSets.main.resources)
@@ -100,7 +94,7 @@ tasks.named('processResources') {
     }
 }
 
-processResources.dependsOn rootProject.tasks.named('copyCert')
+processResources.dependsOn rootProject.tasks.named('01-copyCertificate')
 
 tasks.named('jar') {
     def keystoreDir = rootProject.projectDir

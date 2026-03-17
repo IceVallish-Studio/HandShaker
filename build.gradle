@@ -1,31 +1,28 @@
 plugins {
     id 'base'
-    id 'fabric-loom' apply false
-    id 'net.neoforged.moddev' apply false
+    // id 'fabric-loom' apply false
+    // id 'net.neoforged.moddev' apply false
 }
 
-version = mod_version
-group = maven_group
-
-tasks.register('copyCert') {
-    doLast {
-        if (findProject(':common') != null) {
-            copy {
-                from '.Integrity/public.cer'
-                into 'common/src/main/resources'
-            }
-        }
+tasks.register('01-copyCertificate') {
+    copy {
+        from '.Integrity/public.cer'
+        into 'common/src/main/resources'
     }
 }
 
+tasks.named('build') {
+    dependsOn '01-copyCertificate'
+    dependsOn 'copyArtifacts'
+}
+
+// TODO: Optmize
+
 tasks.register('copyArtifacts') {
     def projectList = [
-        'handlib:1.21',
-        'handlib:1.21.11',
         'fabric',
         'neoforge',
         'paper',
-        'velton'
     ]
     
     def projects = [:]
@@ -42,12 +39,9 @@ tasks.register('copyArtifacts') {
 
     doLast {
         def copyConfigs = [
-            'handlib:1.21': '*.jar',
-            'handlib:1.21.11': '*.jar',
             'fabric': '*-s.jar',
             'neoforge': '*.jar',
-            'paper': '*',
-            'velton': '*-signed.jar'
+            'paper': '*'
         ]
         
         projects.each { projectPath, proj ->
@@ -58,8 +52,4 @@ tasks.register('copyArtifacts') {
             }
         }
     }
-}
-
-tasks.named('build') {
-    dependsOn 'copyArtifacts'
 }

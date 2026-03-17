@@ -50,12 +50,13 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 @Mod(HandShakerServerMod.MOD_ID)
 public class HandShakerServerMod {
-    public static final String MOD_ID = "hand-shaker";
+    public static final String MOD_ID = "hand_shaker";
     public static final Logger LOGGER = LogUtils.getLogger();
     private static HandShakerServerMod instance;
 
@@ -68,7 +69,7 @@ public class HandShakerServerMod {
     private SignatureVerifier signatureVerifier;
     private LocalRestApiServer localRestApiServer;
     private WebhookDispatcher webhookDispatcher;
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     public HandShakerServerMod(IEventBus modEventBus) {
         instance = this;
@@ -184,7 +185,7 @@ public class HandShakerServerMod {
                 public void syncPlayerMods(UUID playerId, String playerName, Set<String> mods) {
                     if (playerHistoryDb != null) {
                         if (blacklistConfig.isAsyncDatabaseOperations() && blacklistConfig.isRuntimeCache()) {
-                            scheduler.submit(() -> {
+                            submitSafely(() -> {
                                 try {
                                     playerHistoryDb.syncPlayerMods(playerId, playerName, mods);
                                 } catch (Exception e) {
@@ -200,7 +201,7 @@ public class HandShakerServerMod {
                 @Override
                 public void checkPlayer(UUID playerId, String playerName, ClientInfo info) {
                     if (server == null) return;
-                    @SuppressWarnings("null")
+                
                     ServerPlayer player = server.getPlayerList().getPlayer(playerId);
                     if (player != null) {
                         blacklistConfig.checkPlayer(player, info);
@@ -220,7 +221,7 @@ public class HandShakerServerMod {
         return instance;
     }
 
-    @SuppressWarnings("null")
+
     public void handleModsList(final ModsListPayload payload, final IPayloadContext context) {
         context.enqueueWork(() -> {
             if (!(context.player() instanceof ServerPlayer player)) return;
@@ -240,7 +241,7 @@ public class HandShakerServerMod {
         });
     }
 
-    @SuppressWarnings("null")
+
     public void handleIntegrity(final IntegrityPayload payload, final IPayloadContext context) {
         context.enqueueWork(() -> {
             if (!(context.player() instanceof ServerPlayer player)) return;
@@ -260,13 +261,13 @@ public class HandShakerServerMod {
         });
     }
 
-    @SuppressWarnings("null")
+
     public void handleVelton(final VeltonPayload payload, final IPayloadContext context) {
         context.enqueueWork(() -> {
             if (!(context.player() instanceof ServerPlayer player)) return;
             try {
                 ValidationResult result = payloadValidator.validateVelton(
-                    player.getUUID(), player.getName().getString(), payload.signatureHash(), payload.nonce());
+                    player.getUUID(), player.getName().getString(), payload.jarHash(), payload.nonce());
                 
                 if (!result.success) {
                     player.connection.disconnect(Component.literal(result.errorMessage));
@@ -283,10 +284,11 @@ public class HandShakerServerMod {
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
         this.server = event.getServer();
-        scheduler.scheduleAtFixedRate(() -> payloadValidator.cleanupExpiredNoncesNow(), 5, 5, TimeUnit.MINUTES);
+        ensureSchedulerActive();
+        scheduleAtFixedRateSafely(() -> payloadValidator.cleanupExpiredNoncesNow(), 5, 5, TimeUnit.MINUTES);
         int days = blacklistConfig.getDeleteHistoryDays();
         if (days > 0) {
-            scheduler.scheduleAtFixedRate(() -> {
+            scheduleAtFixedRateSafely(() -> {
                 if (playerHistoryDb != null) {
                     playerHistoryDb.deleteOldHistory(blacklistConfig.getDeleteHistoryDays());
                 }
@@ -313,8 +315,8 @@ public class HandShakerServerMod {
     @SubscribeEvent
     public void onPlayerJoin(PlayerEvent.PlayerLoggedInEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
-        
-        scheduler.schedule(() -> {
+
+        scheduleSafely(() -> {
             if (server == null) return;
             server.execute(() -> {
                 if (player.connection == null) return;
@@ -322,6 +324,40 @@ public class HandShakerServerMod {
                 blacklistConfig.checkPlayer(player, info);
             });
         }, blacklistConfig.getHandshakeTimeoutSeconds(), TimeUnit.SECONDS);
+    }
+
+    private void ensureSchedulerActive() {
+        if (scheduler.isShutdown() || scheduler.isTerminated()) {
+            scheduler = Executors.newSingleThreadScheduledExecutor();
+            LOGGER.info("Scheduler recreated for new server session");
+        }
+    }
+
+    private void submitSafely(Runnable task) {
+        ensureSchedulerActive();
+        try {
+            scheduler.submit(task);
+        } catch (RejectedExecutionException ex) {
+            LOGGER.warn("Scheduler rejected async task (state transition), skipping task");
+        }
+    }
+
+    private void scheduleSafely(Runnable task, long delay, TimeUnit unit) {
+        ensureSchedulerActive();
+        try {
+            scheduler.schedule(task, delay, unit);
+        } catch (RejectedExecutionException ex) {
+            LOGGER.warn("Scheduler rejected delayed task (state transition), skipping task");
+        }
+    }
+
+    private void scheduleAtFixedRateSafely(Runnable task, long initialDelay, long period, TimeUnit unit) {
+        ensureSchedulerActive();
+        try {
+            scheduler.scheduleAtFixedRate(task, initialDelay, period, unit);
+        } catch (RejectedExecutionException ex) {
+            LOGGER.warn("Scheduler rejected repeating task (state transition), skipping task");
+        }
     }
 
     @SubscribeEvent
@@ -379,7 +415,7 @@ public class HandShakerServerMod {
 
     public record ModsListPayload(String mods, String modListHash, String nonce) implements CustomPacketPayload {
         public static final CustomPacketPayload.Type<ModsListPayload> TYPE = PayloadTypeCompat.payloadType("hand-shaker", "mods");
-        @SuppressWarnings("null")
+    
         public static final StreamCodec<ByteBuf, ModsListPayload> CODEC = StreamCodec.composite(
                 ByteBufCodecs.STRING_UTF8, ModsListPayload::mods,
                 ByteBufCodecs.STRING_UTF8, ModsListPayload::modListHash,
@@ -469,7 +505,7 @@ public class HandShakerServerMod {
 
     public record IntegrityPayload(byte[] signature, String jarHash, String nonce) implements CustomPacketPayload {
         public static final CustomPacketPayload.Type<IntegrityPayload> TYPE = PayloadTypeCompat.payloadType("hand-shaker", "integrity");
-        @SuppressWarnings("null")
+    
         public static final StreamCodec<ByteBuf, IntegrityPayload> CODEC = StreamCodec.composite(
                 ByteBufCodecs.BYTE_ARRAY, IntegrityPayload::signature,
                 ByteBufCodecs.STRING_UTF8, IntegrityPayload::jarHash,
@@ -478,11 +514,12 @@ public class HandShakerServerMod {
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    public record VeltonPayload(String signatureHash, String nonce) implements CustomPacketPayload {
+    public record VeltonPayload(byte[] signature, String jarHash, String nonce) implements CustomPacketPayload {
         public static final CustomPacketPayload.Type<VeltonPayload> TYPE = PayloadTypeCompat.payloadType("velton", "signature");
-        @SuppressWarnings("null")
+    
         public static final StreamCodec<ByteBuf, VeltonPayload> CODEC = StreamCodec.composite(
-                ByteBufCodecs.STRING_UTF8, VeltonPayload::signatureHash,
+                ByteBufCodecs.BYTE_ARRAY, VeltonPayload::signature,
+                ByteBufCodecs.STRING_UTF8, VeltonPayload::jarHash,
                 ByteBufCodecs.STRING_UTF8, VeltonPayload::nonce,
                 VeltonPayload::new);
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
