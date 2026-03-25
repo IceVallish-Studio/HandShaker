@@ -213,7 +213,7 @@ public final class ConfigCommandOperations {
                     ModListToggler.toggleListDetailed(configDir, normalizedList, enable, logger);
 
                 if (toggleResult.status() == ModListToggler.ToggleStatus.NOT_FOUND) {
-                    return new MutationResult(false, "Unknown list file: " + listName + " (expected <name>.yml in config/HandShaker)", false, false, false);
+                    return new MutationResult(false, "Unknown list file: " + listName + " (expected <name>.yml in config/HandShaker or config/HandShaker/mod-lists)", false, false, false);
                 }
 
                 if (toggleResult.status() == ModListToggler.ToggleStatus.UPDATE_FAILED) {

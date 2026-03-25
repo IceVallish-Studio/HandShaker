@@ -104,7 +104,7 @@ public class ConfigManager extends CommonConfigManagerBase {
     }
 
     public boolean addIgnoredMod(String modId) {
-        if (ignoredMods.add(modId.toLowerCase(Locale.ROOT))) {
+        if (super.addIgnoredMod(modId)) {
             save();
             return true;
         }
@@ -112,7 +112,7 @@ public class ConfigManager extends CommonConfigManagerBase {
     }
 
     public boolean removeIgnoredMod(String modId) {
-        if (ignoredMods.remove(modId.toLowerCase(Locale.ROOT))) {
+        if (super.removeIgnoredMod(modId)) {
             save();
             return true;
         }

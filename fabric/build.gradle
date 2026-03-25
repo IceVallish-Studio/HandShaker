@@ -3,26 +3,8 @@ plugins {
 	id 'maven-publish'
 }
 
-def dotEnv = [:]
-def dotEnvFile = rootProject.file('.env')
-if (dotEnvFile.exists()) {
-    dotEnvFile.eachLine { rawLine ->
-        def line = rawLine.trim()
-        if (!line || line.startsWith('#') || !line.contains('=')) {
-            return
-        }
-        def idx = line.indexOf('=')
-        def key = line.substring(0, idx).trim()
-        def value = line.substring(idx + 1).trim()
-        if (value.length() >= 2 && value.startsWith('"') && value.endsWith('"')) {
-            value = value.substring(1, value.length() - 1)
-        }
-        dotEnv[key] = value
-    }
-}
-
-def githubUser = (findProperty('github.user') ?: dotEnv['github.user'] ?: dotEnv['GITHUB_ACTOR'] ?: System.getenv('GITHUB_ACTOR'))?.toString()
-def githubToken = (findProperty('github.token') ?: dotEnv['github.token'] ?: dotEnv['GITHUB_TOKEN'] ?: System.getenv('GITHUB_TOKEN'))?.toString()
+def githubUser = (findProperty('github.user') ?: rootProject.ext.dotEnv['github.user'] ?: rootProject.ext.dotEnv['GITHUB_ACTOR'] ?: System.getenv('GITHUB_ACTOR'))?.toString()
+def githubToken = (findProperty('github.token') ?: rootProject.ext.dotEnv['github.token'] ?: rootProject.ext.dotEnv['GITHUB_TOKEN'] ?: System.getenv('GITHUB_TOKEN'))?.toString()
 
 version = rootProject.mod_version
 group = rootProject.maven_group
@@ -36,7 +18,7 @@ repositories {
 
     maven {
         name = "Fabric"
-        url = "https://maven.fabricmc.net/"
+		url = "https://maven.fabricmc.net/"
     }
 
     maven {
@@ -67,23 +49,18 @@ dependencies {
 	minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
 	implementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_dependency}"
 	implementation "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}"	
-	compileOnly "org.geysermc.geyser:api:${rootProject.geyser_api_version}"
-	compileOnly "org.geysermc.floodgate:api:${rootProject.floodgate_api_version}"
-	
-	// Common module (shared config, database pooling, logging)
+
 	include implementation(project(':common'))
 	// include implementation("maven.modrinth:handlib:1.0.0")
-	include implementation("me.mklv:handlib-${rootProject.handlib_version}")
-	// Fabric-specific database dependency (H2)
-	include implementation('com.h2database:h2:2.2.224')
-	include implementation('com.zaxxer:HikariCP:6.2.1')
-	include implementation('org.slf4j:slf4j-api:2.0.16')
-	include implementation('org.yaml:snakeyaml:2.0')
-	compileOnly 'com.zaxxer:HikariCP:6.2.1'
-	include implementation('org.yaml:snakeyaml:2.0')
+	implementation("me.mklv:handlib-${rootProject.handlib_version}")
+	include implementation("com.h2database:h2:${rootProject.h2database}")
+	include implementation("org.yaml:snakeyaml:${rootProject.snakeyaml}")
+	include implementation("org.slf4j:slf4j-api:${rootProject.slf4japi}")
+	include implementation("com.zaxxer:HikariCP:${rootProject.HikariCP}")
+	compileOnly "com.zaxxer:HikariCP:${rootProject.HikariCP}"
+	compileOnly "org.geysermc.geyser:api:${rootProject.geyser_api_version}"
+	compileOnly "org.geysermc.floodgate:api:${rootProject.floodgate_api_version}"
 	compileOnly "me.lucko:fabric-permissions-api:0.3.1"
-
-
 }
 
 tasks.withType(ProcessResources).configureEach {
@@ -139,16 +116,6 @@ publishing {
 }
 
 afterEvaluate {
-    def envFile = rootProject.file('.env')
-    if (envFile.exists()) {
-        envFile.readLines().each { line ->
-            def (key, value) = line.split('=', 2)
-            if (key && value && !System.getenv(key)) {
-                System.setProperty(key, value)
-            }
-        }
-    }
-
     tasks.register('signFabricJar', Exec) {
         group = 'build'
         description = 'Signs the remapped Fabric client JAR.'
@@ -163,7 +130,7 @@ afterEvaluate {
             def jarToSign = tasks.named('jar').get().archiveFile.get().asFile
             if (rootProject.file('.Integrity/keystore.jks').exists()) {
                 println "--> Signing JAR: ${jarToSign.name}"
-                def keystorePassword = System.getenv('KEYSTORE_PASSWORD') ?: System.getProperty('KEYSTORE_PASSWORD') ?: 'password'
+                def keystorePassword = rootProject.ext.resolveSecret('KEYSTORE_PASSWORD') ?: 'password'
                 args = [
                     '-keystore', rootProject.file('.Integrity/keystore.jks').absolutePath,
                     '-storepass', keystorePassword,
@@ -223,7 +190,7 @@ afterEvaluate {
 				throw new GradleException("Signed jar not found: ${signedJar}")
 			}
 
-			def keystorePassword = System.getenv('KEYSTORE_PASSWORD') ?: System.getProperty('KEYSTORE_PASSWORD') ?: 'password'
+			def keystorePassword = rootProject.ext.resolveSecret('KEYSTORE_PASSWORD') ?: 'password'
 			def keyStoreFile = rootProject.file('.Integrity/keystore.jks')
 			if (!keyStoreFile.exists()) {
 				throw new GradleException('Keystore not found at .Integrity/keystore.jks')

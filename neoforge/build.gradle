@@ -10,11 +10,11 @@ version = ''
 group = project.maven_group
 
 neoForge {
-    version = project.neo_version
+    version = rootProject.neo_version
 
     parchment {
-        mappingsVersion = project.parchment_mappings_version
-        minecraftVersion = project.parchment_minecraft_version
+        mappingsVersion = rootProject.parchment_mappings_version
+        minecraftVersion = rootProject.parchment_minecraft_version
     }
 
     runs {
@@ -54,28 +54,22 @@ repositories {
 dependencies {
     // Common module (shared config, database pooling, logging)
     implementation("me.mklv:handlib-${rootProject.handlib_version}")
-    jarJar("me.mklv:handlib-${rootProject.handlib_version}")
-    jarJar(project(':common'))
     implementation(project(':common'))
+    jarJar(project(':common'))
     
-    // NeoForge-specific database dependency (H2)
-    jarJar('com.h2database:h2:2.2.224')
-    jarJar('com.zaxxer:HikariCP:6.2.1') {
-    exclude group: 'org.slf4j', module: 'slf4j-api'
+    // Runtime dependencies
+    implementation("com.h2database:h2:${rootProject.h2database}")
+    jarJar("com.h2database:h2:${rootProject.h2database}")
+
+    implementation("org.yaml:snakeyaml:${rootProject.snakeyaml}")
+    jarJar("org.yaml:snakeyaml:${rootProject.snakeyaml}")
+
+    implementation("com.zaxxer:HikariCP:${rootProject.HikariCP}") {
+        exclude group: 'org.slf4j', module: 'slf4j-api'
     }
-    
-    // YAML Configuration
-    jarJar('org.yaml:snakeyaml:2.0')
-    
-    // We also need them on compile classpath
-    implementation 'com.h2database:h2:2.2.224'
-    compileOnly 'com.zaxxer:HikariCP:6.2.1'
-    jarJar('org.yaml:snakeyaml:2.0')
-    implementation 'org.yaml:snakeyaml:2.0'
-    implementation ('com.zaxxer:HikariCP:6.2.1') {
-    exclude group: 'org.slf4j', module: 'slf4j-api'
+    jarJar("com.zaxxer:HikariCP:${rootProject.HikariCP}") {
+        exclude group: 'org.slf4j', module: 'slf4j-api'
     }
-    implementation 'org.yaml:snakeyaml:2.0'
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -101,22 +95,7 @@ tasks.named('jar') {
     doLast {
         println "Signing jar: ${archiveFile.get().asFile.absolutePath}"
         
-        // Load .env file from root project directory
-        def envFile = rootProject.file('.env')
-        def keystorePassword = null
-        
-        if (envFile.exists()) {
-            envFile.eachLine { line ->
-                if (line.startsWith('KEYSTORE_PASSWORD=')) {
-                    keystorePassword = line.replace('KEYSTORE_PASSWORD=', '').trim()
-                }
-            }
-        }
-        
-        // Fall back to environment variable or system property if .env not found
-        if (!keystorePassword) {
-            keystorePassword = System.getenv('KEYSTORE_PASSWORD') ?: System.getProperty('KEYSTORE_PASSWORD')
-        }
+        def keystorePassword = rootProject.ext.resolveSecret('KEYSTORE_PASSWORD')
         
         ant.signjar(
             jar: archiveFile.get().asFile,
@@ -173,28 +152,17 @@ tasks.register('embedIntegrityProof') {
     doLast {
         def outputJar = tasks.named('jar').get().archiveFile.get().asFile
         if (!outputJar.exists()) {
-            throw new GradleException("Jar not found: ${outputJar}")
+            println("Jar not found: ${outputJar}")
         }
 
-        def envFile = rootProject.file('.env')
-        def keystorePassword = null
-        if (envFile.exists()) {
-            envFile.eachLine { line ->
-                if (line.startsWith('KEYSTORE_PASSWORD=')) {
-                    keystorePassword = line.replace('KEYSTORE_PASSWORD=', '').trim()
-                }
-            }
-        }
+        def keystorePassword = rootProject.ext.resolveSecret('KEYSTORE_PASSWORD')
         if (!keystorePassword) {
-            keystorePassword = System.getenv('KEYSTORE_PASSWORD') ?: System.getProperty('KEYSTORE_PASSWORD')
-        }
-        if (!keystorePassword) {
-            throw new GradleException('KEYSTORE_PASSWORD is not set')
+            println('KEYSTORE_PASSWORD is not set')
         }
 
         def keyStoreFile = rootProject.file('.Integrity/keystore.jks')
         if (!keyStoreFile.exists()) {
-            throw new GradleException('Keystore not found at .Integrity/keystore.jks')
+            println('Keystore not found at .Integrity/keystore.jks')
         }
 
         def hashHex = computeCanonicalJarHash(outputJar)
@@ -206,7 +174,7 @@ tasks.register('embedIntegrityProof') {
 
         def privateKey = keyStore.getKey('handshaker', keystorePassword.toCharArray())
         if (!(privateKey instanceof java.security.PrivateKey)) {
-            throw new GradleException('Private key alias handshaker was not found in keystore')
+            println('Private key alias handshaker was not found in keystore')
         }
 
         def signature = java.security.Signature.getInstance('SHA256withRSA')
@@ -232,11 +200,15 @@ tasks.named('assemble') {
     dependsOn('embedIntegrityProof')
 }
 
+tasks.named('clean', Delete).configure {
+    delete = [layout.buildDirectory.asFileTree.matching {
+        exclude 'moddev/artifacts/**'
+    }]
+}
+
 task inspectClasspath {
     doLast {
         configurations.compileClasspath.each { file ->
-            // if (file.name.contains("neoforge") || file.name.contains("fml")) {
-                // println "Dependency: ${file.name}"
                 if (!file.isDirectory()) {
                     try {
                         def jar = new java.util.jar.JarFile(file)

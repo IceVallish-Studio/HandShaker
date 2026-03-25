@@ -199,10 +199,6 @@ public final class ConfigLoader {
                 if (advanced.containsKey("enable-diagnostic-command")) {
                     result.setDiagnosticCommandEnabled(readBoolean(advanced.get("enable-diagnostic-command"), true));
                 }
-                if (advanced.containsKey("enable-export-command")) {
-                    result.setExportCommandEnabled(readBoolean(advanced.get("enable-export-command"), true));
-                }
-
                 Map<String, Object> database = asMap(advanced.get("database"));
                 if (database != null && !database.isEmpty()) {
                     if (database.containsKey("async-operations")) {
@@ -240,24 +236,9 @@ public final class ConfigLoader {
                     if (restApiPort != null) {
                         result.setRestApiPort(restApiPort);
                     }
-
-                    Map<String, Object> discordIntegration = asMap(api.get("discord-integration"));
-                    if (discordIntegration != null && !discordIntegration.isEmpty()) {
-                        Map<String, Object> webhook = asMap(discordIntegration.get("webhook"));
-                        if (webhook != null && !webhook.isEmpty()) {
-                            if (webhook.containsKey("enabled")) {
-                                result.setWebhookEnabled(readBoolean(webhook.get("enabled"), false));
-                            }
-                            if (webhook.containsKey("webhook-url")) {
-                                result.setWebhookUrl(String.valueOf(webhook.get("webhook-url")));
-                            }
-                            if (webhook.containsKey("notify-on-ban")) {
-                                result.setWebhookNotifyOnBan(readBoolean(webhook.get("notify-on-ban"), true));
-                            }
-                            if (webhook.containsKey("notify-on-kick")) {
-                                result.setWebhookNotifyOnKick(readBoolean(webhook.get("notify-on-kick"), false));
-                            }
-                        }
+                    String apiKey = readString(api.get("api-key"));
+                    if (apiKey != null && !apiKey.isEmpty()) {
+                        result.setRestApiKey(apiKey);
                     }
                 }
             }

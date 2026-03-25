@@ -1,11 +1,16 @@
 package me.mklv.handshaker.fabric.server;
 
 import me.mklv.handlib.network.PayloadTypeCompat;
+import me.mklv.handlib.fabric.PayloadTypeRegistry;
 import me.mklv.handshaker.fabric.HandShaker;
 import me.mklv.handshaker.common.api.local.ApiDataProvider;
 import me.mklv.handshaker.common.api.local.ApiServerConfig;
 import me.mklv.handshaker.common.api.local.LocalRestApiServer;
-import me.mklv.handshaker.common.api.discord.WebhookDispatcher;
+import me.mklv.handshaker.common.api.module.EventBus;
+import me.mklv.handshaker.common.api.module.HandShakerEvent;
+import me.mklv.handshaker.common.api.module.HandShakerModule;
+import me.mklv.handshaker.common.api.module.ModuleContext;
+import me.mklv.handshaker.common.api.module.ModuleLoader;
 import me.mklv.handshaker.common.server.ServerApiProviderFactory;
 import me.mklv.handshaker.common.server.ServerSecurityWebhookSupport;
 import me.mklv.handshaker.common.configs.ConfigMigration.ConfigMigrator;
@@ -24,7 +29,6 @@ import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import io.netty.buffer.ByteBuf;
@@ -38,7 +42,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Collections;
 import java.util.Map;
@@ -62,7 +70,9 @@ public class HandShakerServer implements DedicatedServerModInitializer {
     private MinecraftServer server;
     private SignatureVerifier signatureVerifier;
     private LocalRestApiServer localRestApiServer;
-    private WebhookDispatcher webhookDispatcher;
+    private final EventBus eventBus = new EventBus();
+    private final List<HandShakerModule> loadedModules = new ArrayList<>();
+    private final Map<String, com.sun.net.httpserver.HttpHandler> pendingModuleRoutes = new LinkedHashMap<>();
     private ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     public static HandShakerServer getInstance() {
@@ -128,10 +138,8 @@ public class HandShakerServer implements DedicatedServerModInitializer {
             playerHistoryDb = new H2PlayerHistoryDatabase(configDir.toFile(), LoggerAdapter.fromLoaderDatabaseLogger(LOGGER), options);
         }
 
+        loadModules();
         startLocalRestApiIfEnabled();
-        startWebhookIfEnabled();
-
-        // Initialize unified payload validator with Fabric-specific callbacks
         this.payloadValidator = new PayloadValidation(
             new PayloadValidationCallbacks() {
                 @Override
@@ -218,7 +226,10 @@ public class HandShakerServer implements DedicatedServerModInitializer {
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             this.server = server;
             ensureSchedulerActive();
-            scheduleAtFixedRateSafely(() -> payloadValidator.cleanupExpiredNoncesNow(), 5, 5, TimeUnit.MINUTES);
+            scheduleAtFixedRateSafely(() -> {
+                payloadValidator.cleanupExpiredNoncesNow();
+                payloadValidator.cleanupIdleRateLimiterBuckets();
+            }, 5, 5, TimeUnit.MINUTES);
             int days = configManager.getDeleteHistoryDays();
             if (days > 0) {
                 scheduleAtFixedRateSafely(() -> {
@@ -229,10 +240,15 @@ public class HandShakerServer implements DedicatedServerModInitializer {
             }
         });
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-            if (webhookDispatcher != null) {
-                webhookDispatcher.shutdown();
-                webhookDispatcher = null;
+            for (HandShakerModule module : loadedModules) {
+                try {
+                    module.onDisable();
+                } catch (Exception e) {
+                    LOGGER.warn("[ModuleLoader] Module '{}' failed on disable: {}", module.getId(), e.getMessage());
+                }
             }
+            loadedModules.clear();
+            eventBus.shutdown();
             if (localRestApiServer != null) {
                 localRestApiServer.stop();
                 localRestApiServer = null;
@@ -244,9 +260,9 @@ public class HandShakerServer implements DedicatedServerModInitializer {
         });
 
         // Register payload types
-        PayloadTypeRegistry.serverboundPlay().register(HandShaker.ModsListPayload.TYPE, HandShaker.ModsListPayload.CODEC);
-        PayloadTypeRegistry.serverboundPlay().register(HandShaker.IntegrityPayload.TYPE, HandShaker.IntegrityPayload.CODEC);
-        PayloadTypeRegistry.serverboundPlay().register(VeltonPayload.TYPE, VeltonPayload.CODEC);
+        PayloadTypeRegistry.registerServerboundPlay(HandShaker.ModsListPayload.TYPE, HandShaker.ModsListPayload.CODEC);
+        PayloadTypeRegistry.registerServerboundPlay(HandShaker.IntegrityPayload.TYPE, HandShaker.IntegrityPayload.CODEC);
+        PayloadTypeRegistry.registerServerboundPlay(VeltonPayload.TYPE, VeltonPayload.CODEC);
 
         // Register payload handlers
         ServerPlayNetworking.registerGlobalReceiver(HandShaker.ModsListPayload.TYPE, (payload, context) -> {
@@ -305,10 +321,15 @@ public class HandShakerServer implements DedicatedServerModInitializer {
 
         // Register player lifecycle events 
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+            UUID playerId = handler.player.getUUID();
+            payloadValidator.clearNonceHistory(playerId);
+            clients.put(playerId, new ClientInfo(Collections.emptySet(), false, false, null, null, null));
+
             scheduleSafely(() -> {
                 server.execute(() -> {
                     if (handler.player.connection == null) return; // Player disconnected
                     ClientInfo info = clients.computeIfAbsent(handler.player.getUUID(), uuid -> new ClientInfo(Collections.emptySet(), false, false, null, null, null));
+                    if (info.checked()) return; // Skip if already checked (prevents duplicate ban execution)
 
                     configManager.checkPlayer(handler.player, info, false, true); // Timeout check: enforce integrity requirements
                 });
@@ -383,6 +404,15 @@ public class HandShakerServer implements DedicatedServerModInitializer {
     public void checkAllPlayers() {
         if (server == null) return;
         LOGGER.info("Re-checking all online players...");
+
+        // Force re-validation by clearing per-session checked markers.
+        for (UUID uuid : new HashSet<>(clients.keySet())) {
+            ClientInfo info = clients.get(uuid);
+            if (info != null) {
+                clients.put(uuid, info.withChecked(false));
+            }
+        }
+
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             configManager.checkPlayer(player, clients.getOrDefault(player.getUUID(), new ClientInfo(Collections.emptySet(), false, false, null, null, null)), false, true);
         }
@@ -415,6 +445,38 @@ public class HandShakerServer implements DedicatedServerModInitializer {
             }
         );
         signatureVerifier = security.signatureVerifier();
+        if (configManager != null) {
+            configManager.setSignatureVerificationAvailable(security.publicKey() != null);
+        }
+    }
+
+    private void loadModules() {
+        Path modulesDir = configManager.getConfigDirPath().resolve("Modules");
+        ApiDataProvider dataProvider = createApiProvider();
+        List<HandShakerModule> found = ModuleLoader.loadFrom(
+                modulesDir, getClass().getClassLoader(), LOGGER);
+        for (HandShakerModule module : found) {
+            String moduleId = module.getId();
+            ModuleContext ctx = new ModuleContext() {
+                @Override public ApiDataProvider dataProvider() { return dataProvider; }
+                @Override public EventBus eventBus() { return eventBus; }
+                @Override public org.slf4j.Logger logger(String cat) { return LoggerFactory.getLogger(cat); }
+                @Override public Path dataFolder() {
+                    Path dir = modulesDir.resolve(moduleId);
+                    try { Files.createDirectories(dir); } catch (Exception ignored) {}
+                    return dir;
+                }
+                @Override public void registerApiRoute(String subPath, com.sun.net.httpserver.HttpHandler handler) {
+                    pendingModuleRoutes.put("/api/v1/modules/" + subPath, handler);
+                }
+            };
+            try {
+                module.onEnable(ctx);
+                loadedModules.add(module);
+            } catch (Exception e) {
+                LOGGER.warn("[ModuleLoader] Module '{}' failed to enable: {}", moduleId, e.getMessage());
+            }
+        }
     }
 
     private void startLocalRestApiIfEnabled() {
@@ -422,8 +484,9 @@ public class HandShakerServer implements DedicatedServerModInitializer {
             return;
         }
 
-        ApiServerConfig apiConfig = new ApiServerConfig(true, configManager.getRestApiPort(), "");
+        ApiServerConfig apiConfig = new ApiServerConfig(true, configManager.getRestApiPort(), configManager.getRestApiKey());
         localRestApiServer = new LocalRestApiServer(apiConfig, createApiProvider(), LOGGER);
+        pendingModuleRoutes.forEach(localRestApiServer::addRoute);
         try {
             localRestApiServer.start();
         } catch (IOException e) {
@@ -460,16 +523,12 @@ public class HandShakerServer implements DedicatedServerModInitializer {
         );
     }
 
-    private void startWebhookIfEnabled() {
-        webhookDispatcher = ServerSecurityWebhookSupport.createWebhookDispatcher(configManager, LOGGER);
-    }
-
     public void publishWebhookKick(String playerName, String reason, String mod) {
-        ServerSecurityWebhookSupport.publishKick(webhookDispatcher, playerName, reason, mod);
+        eventBus.fire(new HandShakerEvent.PlayerKicked(playerName, mod, reason));
     }
 
     public void publishWebhookBan(String playerName, String reason, String mod) {
-        ServerSecurityWebhookSupport.publishBan(webhookDispatcher, playerName, reason, mod);
+        eventBus.fire(new HandShakerEvent.PlayerBanned(playerName, mod, reason));
     }
 
 

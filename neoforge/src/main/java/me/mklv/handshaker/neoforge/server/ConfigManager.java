@@ -14,6 +14,8 @@ import me.mklv.handshaker.common.protocols.CollectKnownHashes;
 import me.mklv.handshaker.common.utils.ModCache;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.permissions.Permission;
 import net.neoforged.fml.loading.FMLPaths;
 
 import java.io.*;
@@ -23,6 +25,10 @@ public class ConfigManager extends CommonConfigManagerBase {
     private final File configDir;
 
     public enum ModStatus { REQUIRED, ALLOWED, BLACKLISTED }
+
+        /** Named bypass permission for MC 26.1 vanilla permission system. */
+        private static final Permission BYPASS_PERMISSION =
+                Permission.Atom.create(Identifier.fromNamespaceAndPath("handshaker", "bypass"));
 
     public ConfigManager() {
         File configRootDir = FMLPaths.CONFIGDIR.get().toFile();
@@ -192,7 +198,7 @@ public class ConfigManager extends CommonConfigManagerBase {
 
                 @Override
                 public boolean hasBypassPermission() {
-                    return false;
+                    return player.permissions().hasPermission(BYPASS_PERMISSION);
                 }
             }
         );

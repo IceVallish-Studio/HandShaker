@@ -145,6 +145,12 @@ public class PayloadValidation {
 
         // 8. Update client info
         ClientInfo oldInfo = clients.get(playerId);
+        // Preserve checked only for the same mod-list nonce (same handshake session).
+        // This prevents stale checked=true from a previous quick reconnect from
+        // skipping blacklist checks for the new session.
+        boolean preserveChecked = oldInfo != null
+            && oldInfo.checked()
+            && Objects.equals(oldInfo.modListNonce(), nonce);
         ClientInfo newInfo = new ClientInfo(
             oldInfo != null && oldInfo.fabric(),  // preserve fabric flag
             mods,
@@ -153,14 +159,27 @@ public class PayloadValidation {
             nonce,
             oldInfo != null ? oldInfo.integrityNonce() : null,
             oldInfo != null ? oldInfo.veltonNonce() : null,
-            oldInfo != null && oldInfo.checked()  // preserve checked flag to prevent double action execution
+            preserveChecked
         );
         clients.put(playerId, newInfo);
 
         // 9. Trigger player check with updated mod info
         callbacks.checkPlayer(playerId, playerName, newInfo);
 
-        return new ValidationResult(true, null, newInfo);
+        // 10. Mark as checked so subsequent payload validations skip re-checking
+        ClientInfo checkedInfo = new ClientInfo(
+            newInfo.fabric(),
+            newInfo.mods(),
+            newInfo.signatureVerified(),
+            newInfo.veltonVerified(),
+            newInfo.modListNonce(),
+            newInfo.integrityNonce(),
+            newInfo.veltonNonce(),
+            true  // Set checked=true
+        );
+        clients.put(playerId, checkedInfo);
+
+        return new ValidationResult(true, null, checkedInfo);
     }
 
     /**
@@ -317,7 +336,24 @@ public class PayloadValidation {
         // 7. Trigger player check
         callbacks.checkPlayer(playerId, playerName, newInfo);
 
-        return new ValidationResult(true, null, newInfo);
+        // 9. Mark as checked only if the mod list has already been processed.
+        // If integrity arrives before the mod list, do NOT set checked=true yet —
+        // validateModList must still run to evaluate blacklist/whitelist rules.
+        // If mod list was already processed (modListNonce != null), preserve checked=true.
+        boolean modListAlreadyProcessed = newInfo.modListNonce() != null;
+        ClientInfo checkedInfo = new ClientInfo(
+            newInfo.fabric(),
+            newInfo.mods(),
+            newInfo.signatureVerified(),
+            newInfo.veltonVerified(),
+            newInfo.modListNonce(),
+            newInfo.integrityNonce(),
+            newInfo.veltonNonce(),
+            modListAlreadyProcessed
+        );
+        clients.put(playerId, checkedInfo);
+
+        return new ValidationResult(true, null, checkedInfo);
     }
 
     /**
@@ -380,7 +416,23 @@ public class PayloadValidation {
         // 6. Trigger player check
         callbacks.checkPlayer(playerId, playerName, newInfo);
 
-        return new ValidationResult(true, null, newInfo);
+        // 7. Mark as checked only if the mod list has already been processed.
+        // Velton payload can arrive before the mod list — do NOT set checked=true yet
+        // or validateModList will skip the blacklist check entirely.
+        boolean modListAlreadyProcessed = newInfo.modListNonce() != null;
+        ClientInfo checkedInfo = new ClientInfo(
+            newInfo.fabric(),
+            newInfo.mods(),
+            newInfo.signatureVerified(),
+            newInfo.veltonVerified(),
+            newInfo.modListNonce(),
+            newInfo.integrityNonce(),
+            newInfo.veltonNonce(),
+            modListAlreadyProcessed
+        );
+        clients.put(playerId, checkedInfo);
+
+        return new ValidationResult(true, null, checkedInfo);
     }
 
     private boolean verifySignature(String jarHash, byte[] signatureBytes, String playerName) {
@@ -427,6 +479,10 @@ public class PayloadValidation {
 
     public void cleanupExpiredNoncesNow() {
         cleanupExpiredNonces();
+    }
+
+    public void cleanupIdleRateLimiterBuckets() {
+        rateLimiter.cleanupIdle(30 * 60 * 1000L); // Remove buckets idle for 30 minutes
     }
 
     private boolean markNonceUsed(UUID playerId, String nonce) {

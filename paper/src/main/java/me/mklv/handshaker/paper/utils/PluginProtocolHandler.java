@@ -45,6 +45,7 @@ public class PluginProtocolHandler {
         
         // Load public key for signature verification
         PublicKey publicKey = loadPublicCertificate();
+        configManager.setSignatureVerificationAvailable(publicKey != null);
         this.signatureVerifier = new SignatureVerifier(publicKey, new SignatureVerifier.LogSink() {
             @Override
             public void info(String message) {
@@ -402,6 +403,12 @@ public class PluginProtocolHandler {
 
         // Skip if already checked
         if (info.checked()) {
+            return;
+        }
+
+        // Honor bypass permission before signature/mod checks — consistent
+        // with Fabric/NeoForge where bypass precedes all enforcement.
+        if (player.hasPermission("handshaker.bypass")) {
             return;
         }
 

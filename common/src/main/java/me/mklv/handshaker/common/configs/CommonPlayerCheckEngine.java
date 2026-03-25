@@ -64,6 +64,11 @@ public final class CommonPlayerCheckEngine {
             return;
         }
 
+        // Skip check if already performed during this session (prevents duplicate webhook events)
+        if (info != null && info.checked()) {
+            return;
+        }
+
         boolean hasMod = info != null && !info.mods().isEmpty();
 
         if (config.getIntegrityMode() == IntegrityMode.SIGNED && hasMod) {
@@ -135,6 +140,23 @@ public final class CommonPlayerCheckEngine {
                             " (blacklisted mods: " + result.getMods() + ")");
                     }
 
+                    // Disconnect BEFORE executing commands so the disconnect message is shown before Minecraft's ban system
+                    if (result.getMessage() != null) {
+                        boolean isBanAction = "ban".equalsIgnoreCase(result.getActionName());
+                        if (!isBanAction) {
+                            bridge.publishKick(playerName, result.getMessage(), String.join(", ", result.getMods()));
+                        }
+                        String disconnectMsg = isBanAction
+                            ? MessagePlaceholderExpander.expand(
+                                config.getMessageOrDefault(StandardMessages.KEY_BAN, StandardMessages.DEFAULT_BAN_MESSAGE),
+                                playerName,
+                                String.join(", ", result.getMods()),
+                                config.getMessages()
+                            )
+                            : result.getMessage();
+                        bridge.disconnect(disconnectMsg);
+                    }
+
                     executeCommands(
                         config,
                         actionDef,
@@ -145,7 +167,8 @@ public final class CommonPlayerCheckEngine {
                 }
             }
 
-            if (result.getMessage() != null) {
+            if (result.getMessage() != null && !(result.isBlacklistedViolation())) {
+                // Only handle non-violation messages here (already handled above for blacklisted violations)
                 boolean isBanAction = "ban".equalsIgnoreCase(result.getActionName());
                 if (!isBanAction) {
                     bridge.publishKick(playerName, result.getMessage(), String.join(", ", result.getMods()));
