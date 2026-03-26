@@ -7,6 +7,8 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.ServiceLoader;
 
@@ -39,26 +41,34 @@ public final class ModuleLoader {
         if (!Files.isDirectory(modulesDir)) {
             return result;
         }
-        File[] jars = modulesDir.toFile().listFiles(f -> f.isFile() && f.getName().endsWith(".jar"));
+        File[] jars = modulesDir.toFile().listFiles(f -> {
+            if (!f.isFile()) {
+                return false;
+            }
+            String name = f.getName();
+            return name.endsWith(".jar")
+                    && !name.endsWith("-sources.jar")
+                    && !name.endsWith("-javadoc.jar");
+        });
         if (jars == null || jars.length == 0) {
             return result;
         }
+        Arrays.sort(jars, Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER));
         for (File jar : jars) {
             try {
-                try (URLClassLoader cl = new URLClassLoader(
-                        new java.net.URL[]{jar.toURI().toURL()}, parent)) {
-                    ServiceLoader<HandShakerModule> sl = ServiceLoader.load(HandShakerModule.class, cl);
-                    int before = result.size();
-                    for (HandShakerModule module : sl) {
-                        result.add(module);
-                        logger.info("[ModuleLoader] Loaded module '{}' from {}", module.getId(), jar.getName());
-                    }
-                    if (result.size() == before) {
-                        logger.warn("[ModuleLoader] {} contains no HandShakerModule services — skipping", jar.getName());
-                    }
+                URLClassLoader cl = new URLClassLoader(
+                        new java.net.URL[]{jar.toURI().toURL()}, parent);
+                ServiceLoader<HandShakerModule> sl = ServiceLoader.load(HandShakerModule.class, cl);
+                int before = result.size();
+                for (HandShakerModule module : sl) {
+                    result.add(module);
+                    logger.info("[ModuleLoader] Loaded module '{}' from {}", module.getId(), jar.getName());
                 }
-            } catch (Exception e) {
-                logger.error("[ModuleLoader] Failed to load {}: {}", jar.getName(), e.getMessage());
+                if (result.size() == before) {
+                    logger.warn("[ModuleLoader] {} contains no HandShakerModule services — skipping", jar.getName());
+                }
+            } catch (Throwable t) {
+                logger.error("[ModuleLoader] Failed to load {}: {}", jar.getName(), t.toString());
             }
         }
         return result;
