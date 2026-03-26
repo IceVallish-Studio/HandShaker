@@ -28,9 +28,9 @@
 		"hand-shaker.mixins.json"
 	],
 	"depends": {
-		"fabricloader": ">=0.18.1",
+		"fabricloader": ">=0.17.1",
 		"minecraft": "${supported_mc_versions}",
-		"java": ">=25",
+		"java": ">=21",
 		"fabric-api": "*",
 		"handlib": "*"		
 	},

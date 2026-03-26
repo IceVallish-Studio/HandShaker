@@ -1,5 +1,5 @@
 plugins {
-	id 'net.fabricmc.fabric-loom'
+	id 'fabric-loom'
 	id 'maven-publish'
 }
 
@@ -14,6 +14,7 @@ base {
 }
 
 repositories {
+	
     mavenCentral()
 
     maven {
@@ -47,9 +48,12 @@ repositories {
 
 dependencies {
 	minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
-	implementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_dependency}"
-	implementation "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}"	
-
+	modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_dependency}"
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}"	
+	mappings loom.layered() {
+    	officialMojangMappings()
+        parchment("org.parchmentmc.data:parchment-${rootProject.parchment_minecraft_version}:${rootProject.parchment_mappings_version}@zip")
+    }
 	include implementation(project(':common'))
 	// include implementation("maven.modrinth:handlib:1.0.0")
 	implementation("me.mklv:handlib-${rootProject.handlib_version}")
@@ -73,21 +77,21 @@ processResources {
 	from(project(':common').sourceSets.main.resources)
 	filesMatching("fabric.mod.json") {
 		filter { line ->
-			line.replace('${version}', "${version}-26.1")
+			line.replace('${version}', "${version}-1.21.x")
 				.replace('${supported_mc_versions}', supportedVersions)
 		}
 	}
 }
 
 tasks.withType(JavaCompile).configureEach {
-	it.options.release = 25
+	it.options.release = 21
 }
 
 java {
 	withSourcesJar()
 
-	sourceCompatibility = JavaVersion.VERSION_25
-	targetCompatibility = JavaVersion.VERSION_25
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
 }
 
 tasks.named('sourcesJar').configure {
@@ -119,7 +123,7 @@ afterEvaluate {
     tasks.register('signFabricJar', Exec) {
         group = 'build'
         description = 'Signs the remapped Fabric client JAR.'
-        dependsOn(tasks.named('jar'))
+        dependsOn(tasks.named('remapJar'))
 		def signedJar = layout.buildDirectory.file("libs/${rootProject.mod_id}-fabric-${rootProject.mod_version}-s.jar")
         inputs.file(rootProject.file('.Integrity/keystore.jks'))
         outputs.file(signedJar)
@@ -127,7 +131,7 @@ afterEvaluate {
         executable = 'jarsigner'
 
         doFirst {
-            def jarToSign = tasks.named('jar').get().archiveFile.get().asFile
+            def jarToSign = tasks.named('remapJar').get().archiveFile.get().asFile
             if (rootProject.file('.Integrity/keystore.jks').exists()) {
                 println "--> Signing JAR: ${jarToSign.name}"
                 def keystorePassword = rootProject.ext.resolveSecret('KEYSTORE_PASSWORD') ?: 'password'

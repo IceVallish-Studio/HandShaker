@@ -74,12 +74,12 @@ dependencies {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-    options.release = 25
+    options.release = 21
 }
 
 tasks.named('processResources') {
     var replaceProperties = [
-        file: [jarVersion: "${project.mod_version}-26.1"]
+        file: [jarVersion: "${project.mod_version}-1.21.x"]
     ]
     inputs.properties replaceProperties
     from(project(':common').sourceSets.main.resources)
