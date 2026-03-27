@@ -208,7 +208,7 @@ public class HandShakerPlugin extends JavaPlugin {
         for (UUID uuid : new java.util.HashSet<>(clients.keySet())) {
             ClientInfo info = clients.get(uuid);
             if (info != null) {
-                clients.put(uuid, info.withChecked(false));
+                clients.put(uuid, info.withHandshakeChecked(false));
             }
         }
         // Re-check all online players with timeout enforcement

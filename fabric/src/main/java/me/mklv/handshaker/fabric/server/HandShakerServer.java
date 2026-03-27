@@ -329,7 +329,7 @@ public class HandShakerServer implements DedicatedServerModInitializer {
                 server.execute(() -> {
                     if (handler.player.connection == null) return; // Player disconnected
                     ClientInfo info = clients.computeIfAbsent(handler.player.getUUID(), uuid -> new ClientInfo(Collections.emptySet(), false, false, null, null, null));
-                    if (info.checked()) return; // Skip if already checked (prevents duplicate ban execution)
+                    if (info.handshakeChecked()) return; // Skip if already checked (prevents duplicate ban execution)
 
                     configManager.checkPlayer(handler.player, info, false, true); // Timeout check: enforce integrity requirements
                 });
@@ -409,7 +409,7 @@ public class HandShakerServer implements DedicatedServerModInitializer {
         for (UUID uuid : new HashSet<>(clients.keySet())) {
             ClientInfo info = clients.get(uuid);
             if (info != null) {
-                clients.put(uuid, info.withChecked(false));
+                clients.put(uuid, info.withHandshakeChecked(false));
             }
         }
 
