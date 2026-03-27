@@ -2,6 +2,9 @@ plugins {
     id 'net.neoforged.moddev'
 }
 
+def githubUser = (findProperty('github.user') ?: rootProject.ext.dotEnv['github.user'] ?: rootProject.ext.dotEnv['GITHUB_ACTOR'] ?: System.getenv('GITHUB_ACTOR'))?.toString()
+def githubToken = (findProperty('github.token') ?: rootProject.ext.dotEnv['github.token'] ?: rootProject.ext.dotEnv['GITHUB_TOKEN'] ?: System.getenv('GITHUB_TOKEN'))?.toString()
+
 base {
 	archivesName = "${mod_id}-neo-${project.mod_version}"
 }
@@ -44,10 +47,17 @@ neoForge {
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
-    mavenLocal()
     maven {
         name = "Fabric"
         url = "https://maven.fabricmc.net/"
+    }
+    maven {
+        name = "Handlib"
+        url = "https://maven.pkg.github.com/IceVallish-Studio/Handlib"
+        credentials {
+            username = githubUser
+            password = githubToken
+        }
     }
 }
 

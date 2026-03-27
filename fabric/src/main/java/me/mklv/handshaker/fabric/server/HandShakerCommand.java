@@ -8,7 +8,7 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import me.mklv.handlib.fabric.PermissionsAdapter;
-import me.mklv.handlib.text.TextEventCompat;
+import me.mklv.handlib.fabric.text.TextEventCompat;
 import me.mklv.handshaker.common.commands.ConfigCommandOperations;
 import me.mklv.handshaker.common.commands.InfoCommandOperations;
 import me.mklv.handshaker.common.commands.CommandDataOperations;

@@ -1,7 +1,6 @@
 package me.mklv.handshaker.fabric;
 
-import me.mklv.handlib.network.PayloadTypeCompat;
-import me.mklv.handlib.fabric.PayloadTypeRegistry;
+import me.mklv.handlib.fabric.network.*;
 import me.mklv.handshaker.common.loader.CommonClientHandshakeOrchestrator;
 import me.mklv.handshaker.common.loader.CommonClientHashPayloadService;
 import net.fabricmc.api.ClientModInitializer;

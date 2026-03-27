@@ -56,7 +56,7 @@ dependencies {
     }
 	include implementation(project(':common'))
 	// include implementation("maven.modrinth:handlib:1.0.0")
-	implementation("me.mklv:handlib-${rootProject.handlib_version}")
+	modImplementation("me.mklv:handlib-${rootProject.handlib_version}")
 	include implementation("com.h2database:h2:${rootProject.h2database}")
 	include implementation("org.yaml:snakeyaml:${rootProject.snakeyaml}")
 	include implementation("org.slf4j:slf4j-api:${rootProject.slf4japi}")

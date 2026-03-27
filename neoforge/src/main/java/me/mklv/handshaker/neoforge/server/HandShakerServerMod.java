@@ -2,7 +2,7 @@ package me.mklv.handshaker.neoforge.server;
 
 import com.mojang.logging.LogUtils;
 import io.netty.buffer.ByteBuf;
-import me.mklv.handlib.network.PayloadTypeCompat;
+import me.mklv.handlib.neoforge.network.*;
 import me.mklv.handshaker.neoforge.NetworkSetup;
 import me.mklv.handshaker.common.api.local.ApiDataProvider;
 import me.mklv.handshaker.common.api.local.ApiServerConfig;
