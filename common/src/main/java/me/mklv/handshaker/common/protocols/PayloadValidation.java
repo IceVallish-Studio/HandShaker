@@ -1,7 +1,7 @@
 package me.mklv.handshaker.common.protocols;
 
 import me.mklv.handshaker.common.configs.ConfigTypes.StandardMessages;
-import me.mklv.handshaker.common.protocols.LegacyVersion.ClientProfile;
+import me.mklv.handshaker.common.protocols.LegacyVersion.ModListFormat;
 import me.mklv.handshaker.common.utils.ClientInfo;
 import me.mklv.handshaker.common.utils.HashUtils;
 import me.mklv.handshaker.common.utils.PayloadCompression;
@@ -104,12 +104,12 @@ public class PayloadValidation {
             }
         }
 
-        ClientProfile profile = LegacyVersion.detectByPayload(decodedPayload, modListHash, hashMissingOrInvalid);
+        ModListFormat modListFormat = LegacyVersion.detectByPayload(decodedPayload, modListHash, hashMissingOrInvalid);
         if (debugMode) {
-            callbacks.logInfo("Detected mod-list profile for %s: %s", playerName, profile.name().toLowerCase(Locale.ROOT));
+            callbacks.logInfo("Detected mod-list profile for %s: %s", playerName, modListFormat.name().toLowerCase(Locale.ROOT));
         }
         if (!LegacyVersion.isAllowed(
-            profile,
+            modListFormat,
             callbacks.isModernCompatibilityEnabled(),
             callbacks.isHybridCompatibilityEnabled(),
             callbacks.isLegacyCompatibilityEnabled()
@@ -117,11 +117,11 @@ public class PayloadValidation {
             String message = callbacks.getMessageOrDefault(StandardMessages.KEY_OUTDATED_CLIENT,
                 StandardMessages.DEFAULT_OUTDATED_CLIENT_MESSAGE);
             callbacks.logWarning("Received %s mod-list payload from %s but this compatibility mode is disabled.",
-                profile.name().toLowerCase(Locale.ROOT), playerName);
+                modListFormat.name().toLowerCase(Locale.ROOT), playerName);
             return new ValidationResult(false, message);
         }
 
-        if (hashMissingOrInvalid && profile != ClientProfile.LEGACY) {
+        if (hashMissingOrInvalid && modListFormat != ModListFormat.LEGACY) {
             String message = callbacks.getMessageOrDefault(StandardMessages.KEY_HANDSHAKE_HASH_MISMATCH,
                 StandardMessages.HANDSHAKE_HASH_MISMATCH);
             return new ValidationResult(false, message);
@@ -145,37 +145,37 @@ public class PayloadValidation {
 
         // 8. Update client info
         ClientInfo oldInfo = clients.get(playerId);
-        // Preserve checked only for the same mod-list nonce (same handshake session).
-        // This prevents stale checked=true from a previous quick reconnect from
+        // Preserve handshakeChecked only for the same mod-list nonce (same handshake session).
+        // This prevents stale handshakeChecked=true from a previous quick reconnect from
         // skipping blacklist checks for the new session.
-        boolean preserveChecked = oldInfo != null
-            && oldInfo.checked()
+        boolean preserveHandshakeChecked = oldInfo != null
+            && oldInfo.handshakeChecked()
             && Objects.equals(oldInfo.modListNonce(), nonce);
         ClientInfo newInfo = new ClientInfo(
-            oldInfo != null && oldInfo.fabric(),  // preserve fabric flag
+                true,  // receiving a mod list proves the client has the mod
             mods,
             oldInfo != null && oldInfo.signatureVerified(),
             oldInfo != null && oldInfo.veltonVerified(),
             nonce,
             oldInfo != null ? oldInfo.integrityNonce() : null,
             oldInfo != null ? oldInfo.veltonNonce() : null,
-            preserveChecked
+            preserveHandshakeChecked
         );
         clients.put(playerId, newInfo);
 
         // 9. Trigger player check with updated mod info
         callbacks.checkPlayer(playerId, playerName, newInfo);
 
-        // 10. Mark as checked so subsequent payload validations skip re-checking
+        // 10. Mark as handshake-checked so subsequent payload validations skip re-checking
         ClientInfo checkedInfo = new ClientInfo(
-            newInfo.fabric(),
+            newInfo.hasHandshakeClient(),
             newInfo.mods(),
             newInfo.signatureVerified(),
             newInfo.veltonVerified(),
             newInfo.modListNonce(),
             newInfo.integrityNonce(),
             newInfo.veltonNonce(),
-            true  // Set checked=true
+            true  // Set handshakeChecked=true
         );
         clients.put(playerId, checkedInfo);
 
@@ -194,12 +194,12 @@ public class PayloadValidation {
         }
 
         ClientInfo previousInfo = clients.get(playerId);
-        ClientProfile profile = LegacyVersion.detectByMods(previousInfo != null ? previousInfo.mods() : Collections.emptySet());
+        ModListFormat modListFormat = LegacyVersion.detectByMods(previousInfo != null ? previousInfo.mods() : Collections.emptySet());
         if (debugMode) {
-            callbacks.logInfo("Detected integrity profile for %s: %s", playerName, profile.name().toLowerCase(Locale.ROOT));
+            callbacks.logInfo("Detected integrity profile for %s: %s", playerName, modListFormat.name().toLowerCase(Locale.ROOT));
         }
 
-        if (profile == ClientProfile.HYBRID && !callbacks.isHybridCompatibilityEnabled()) {
+        if (modListFormat == ModListFormat.HYBRID && !callbacks.isHybridCompatibilityEnabled()) {
             String message = callbacks.getMessageOrDefault(StandardMessages.KEY_OUTDATED_CLIENT,
                 StandardMessages.DEFAULT_OUTDATED_CLIENT_MESSAGE);
             callbacks.logWarning("Received hybrid(v6) integrity payload from %s while hybrid compatibility is disabled.", playerName);
@@ -232,7 +232,7 @@ public class PayloadValidation {
 
         // 4. Check for legacy format (single byte)
         if (clientSignature.length == 1) {
-            if (profile == ClientProfile.HYBRID && callbacks.isHybridCompatibilityEnabled()) {
+            if (modListFormat == ModListFormat.HYBRID && callbacks.isHybridCompatibilityEnabled()) {
                 boolean verified = clientSignature[0] != 0;
                 if (!verified) {
                     String message = callbacks.getMessageOrDefault(StandardMessages.KEY_INVALID_SIGNATURE,
@@ -280,7 +280,7 @@ public class PayloadValidation {
             callbacks.logInfo("Integrity payload hash from %s: %s", playerName, jarHash);
         }
 
-        if (profile == ClientProfile.HYBRID && callbacks.isHybridCompatibilityEnabled()) {
+        if (modListFormat == ModListFormat.HYBRID && callbacks.isHybridCompatibilityEnabled()) {
             if (!LegacyVersion.isTrustedHybridJarHash(jarHash)) {
                 String message = callbacks.getMessageOrDefault(StandardMessages.KEY_INVALID_SIGNATURE,
                     StandardMessages.DEFAULT_INVALID_SIGNATURE_MESSAGE);
@@ -322,27 +322,27 @@ public class PayloadValidation {
     private ValidationResult updateIntegrityResult(UUID playerId, String playerName, String nonce, boolean verified) {
         ClientInfo oldInfo = clients.get(playerId);
         ClientInfo newInfo = new ClientInfo(
-            oldInfo != null && oldInfo.fabric(),  // preserve fabric flag
+            oldInfo != null && oldInfo.hasHandshakeClient(),  // preserve handshake-client marker
             oldInfo != null ? oldInfo.mods() : Collections.emptySet(),
             verified,
             oldInfo != null && oldInfo.veltonVerified(),
             oldInfo != null ? oldInfo.modListNonce() : null,
             nonce,
             oldInfo != null ? oldInfo.veltonNonce() : null,
-            oldInfo != null && oldInfo.checked()  // preserve checked flag to prevent double action execution
+            oldInfo != null && oldInfo.handshakeChecked()  // preserve handshake-checked flag to prevent double action execution
         );
         clients.put(playerId, newInfo);
 
         // 7. Trigger player check
         callbacks.checkPlayer(playerId, playerName, newInfo);
 
-        // 9. Mark as checked only if the mod list has already been processed.
+        // 9. Mark as handshake-checked only if the mod list has already been processed.
         // If integrity arrives before the mod list, do NOT set checked=true yet —
         // validateModList must still run to evaluate blacklist/whitelist rules.
         // If mod list was already processed (modListNonce != null), preserve checked=true.
         boolean modListAlreadyProcessed = newInfo.modListNonce() != null;
         ClientInfo checkedInfo = new ClientInfo(
-            newInfo.fabric(),
+            newInfo.hasHandshakeClient(),
             newInfo.mods(),
             newInfo.signatureVerified(),
             newInfo.veltonVerified(),
@@ -402,14 +402,14 @@ public class PayloadValidation {
         // 5. Update client info
         ClientInfo oldInfo = clients.get(playerId);
         ClientInfo newInfo = new ClientInfo(
-            oldInfo != null && oldInfo.fabric(),  // preserve fabric flag
+            oldInfo != null && oldInfo.hasHandshakeClient(),  // preserve handshake-client marker
             oldInfo != null ? oldInfo.mods() : Collections.emptySet(),
             oldInfo != null && oldInfo.signatureVerified(),
             verified,
             oldInfo != null ? oldInfo.modListNonce() : null,
             oldInfo != null ? oldInfo.integrityNonce() : null,
             nonce,
-            oldInfo != null && oldInfo.checked()  // preserve checked flag to prevent double action execution
+            oldInfo != null && oldInfo.handshakeChecked()  // preserve handshake-checked flag to prevent double action execution
         );
         clients.put(playerId, newInfo);
 
@@ -421,7 +421,7 @@ public class PayloadValidation {
         // or validateModList will skip the blacklist check entirely.
         boolean modListAlreadyProcessed = newInfo.modListNonce() != null;
         ClientInfo checkedInfo = new ClientInfo(
-            newInfo.fabric(),
+            newInfo.hasHandshakeClient(),
             newInfo.mods(),
             newInfo.signatureVerified(),
             newInfo.veltonVerified(),

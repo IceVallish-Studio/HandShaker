@@ -14,6 +14,7 @@ import me.mklv.handshaker.common.utils.ModChecks.ModCheckResult;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Collection;
 
 public final class CommonPlayerCheckEngine {
     private CommonPlayerCheckEngine() {
@@ -33,6 +34,10 @@ public final class CommonPlayerCheckEngine {
         void publishKick(String playerName, String reason, String mods);
 
         boolean hasBypassPermission();
+
+        default Collection<ClassLoader> additionalBedrockClassLoaders() {
+            return null;
+        }
     }
 
     public static void checkPlayer(CommonConfigManagerBase config,
@@ -46,7 +51,8 @@ public final class CommonPlayerCheckEngine {
         boolean bedrockPlayer = BedrockPlayer.isBedrockPlayer(
             playerId,
             playerName,
-            bridge::warn
+            bridge::warn,
+            bridge.additionalBedrockClassLoaders()
         );
         if (bedrockPlayer) {
             if (config.isAllowBedrockPlayers()) {
@@ -65,7 +71,7 @@ public final class CommonPlayerCheckEngine {
         }
 
         // Skip check if already performed during this session (prevents duplicate webhook events)
-        if (info != null && info.checked()) {
+        if (info != null && info.handshakeChecked()) {
             return;
         }
 

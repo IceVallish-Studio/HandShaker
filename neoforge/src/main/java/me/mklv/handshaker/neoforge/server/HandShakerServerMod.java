@@ -342,7 +342,7 @@ public class HandShakerServerMod {
             server.execute(() -> {
                 if (player.connection == null) return;
                 ClientInfo info = clients.computeIfAbsent(player.getUUID(), uuid -> new ClientInfo(Collections.emptySet(), false, false, null, null, null));
-                if (info.checked()) return; // Skip if already checked (prevents duplicate ban execution)
+                if (info.handshakeChecked()) return; // Skip if already checked (prevents duplicate ban execution)
                 blacklistConfig.checkPlayer(player, info);
             });
         }, blacklistConfig.getHandshakeTimeoutSeconds(), TimeUnit.SECONDS);
@@ -426,7 +426,7 @@ public class HandShakerServerMod {
         for (UUID uuid : new HashSet<>(clients.keySet())) {
             ClientInfo info = clients.get(uuid);
             if (info != null) {
-                clients.put(uuid, info.withChecked(false));
+                clients.put(uuid, info.withHandshakeChecked(false));
             }
         }
 
