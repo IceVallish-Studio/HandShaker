@@ -70,7 +70,7 @@ public final class DiagnosticCommand {
 			"Detected mods (historical): " + uniqueMods,
 			"Configured rules: " + config.getModConfigMap().size(),
 			"Active players (historical): " + activePlayers,
-			"Strict handshake mode: " + config.getBehavior(),
+			"Handshake enforcement: " + config.getBehavior(),
 			"Client verification mode: " + config.getDisplayedIntegrityMode(),
 			"Compatibility: modern=" + (config.isModernCompatibilityEnabled() ? "on" : "off")
 				+ ", hybrid=" + (config.isHybridCompatibilityEnabled() ? "on" : "off")
@@ -158,7 +158,7 @@ public final class DiagnosticCommand {
 				"compatibility-legacy=" + config.isLegacyCompatibilityEnabled(),
 				"compatibility-unsigned-dev=" + config.isUnsignedCompatibilityEnabled(),
 				"whitelist-enforcement=" + config.isWhitelist(),
-				"handshake-timeout-seconds=" + config.getHandshakeTimeoutSeconds(),
+				"timeout-seconds=" + config.getHandshakeTimeoutSeconds(),
 				"rule-lists-required=" + config.areModsRequiredEnabled(),
 				"rule-lists-blacklisted=" + config.areModsBlacklistedEnabled(),
 				"rule-lists-whitelisted=" + config.areModsWhitelistedEnabled(),
@@ -167,7 +167,7 @@ public final class DiagnosticCommand {
 				"runtime-cache=" + config.isRuntimeCache(),
 				"bedrock-players-allowed=" + config.isAllowBedrockPlayers(),
 				"player-database-enabled=" + config.isPlayerdbEnabled(),
-				"required-modpack-hashes=" + (config.getRequiredModpackHashes().isEmpty() ? "OFF" : String.join(",", config.getRequiredModpackHashes())),
+				"modpack-hashes=" + (config.getRequiredModpackHashes().isEmpty() ? "OFF" : String.join(",", config.getRequiredModpackHashes())),
 				"database-pool-size=" + config.getDatabasePoolSize(),
 				"database-idle-timeout-ms=" + config.getDatabaseIdleTimeoutMs(),
 				"database-max-lifetime-ms=" + config.getDatabaseMaxLifetimeMs(),

@@ -327,6 +327,7 @@ public class HandShakerServer implements DedicatedServerModInitializer {
             scheduleSafely(() -> {
                 server.execute(() -> {
                     if (handler.player.connection == null) return; // Player disconnected
+                    if (server.getPlayerList().getPlayer(handler.player.getUUID()) == null) return; // Already disconnected by handshake validation
                     ClientInfo info = clients.computeIfAbsent(handler.player.getUUID(), uuid -> new ClientInfo(Collections.emptySet(), false, false, null, null, null));
                     if (info.handshakeChecked()) return; // Skip if already checked (prevents duplicate ban execution)
 
