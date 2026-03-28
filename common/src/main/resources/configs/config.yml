@@ -3,21 +3,20 @@
 settings:
   config-version: 7
   debug: false
-  force-handshaker-mod: true
-  allow-bedrock-players: false
-  handshake-timeout-seconds: 5
-  enforce-whitelisted-mod-list: false
+  handshaker-enforcement: true
+  bedrock-policy: false
+  timeout-seconds: 5
+  whitelist-enforcement: false
   mod-versioning: true
-  required-modpack-hashes: []
+  modpack-hashes: []
+  database: false
+  use-hash-for-mods: true
+  runtime-cache: false
   handshaker-version-compatibility:
     modern-7.0+: true
     hybrid-6.0: false
     legacy-3.0+: false
     unsigned: false  
-  player-database:
-    enabled: false
-    use-hash-for-mods: true
-    runtime-cache: false
   custom-lists:
     mods-required-enabled: true
     mods-blacklisted-enabled: true

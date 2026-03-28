@@ -204,7 +204,7 @@ public class HandShakerPlugin extends JavaPlugin {
 
     public void checkAllPlayers() {
         getLogger().info("Re-checking all online players...");
-        // Reset checked flags for all players
+        // Reset handshake-checked flags for all players
         for (UUID uuid : new java.util.HashSet<>(clients.keySet())) {
             ClientInfo info = clients.get(uuid);
             if (info != null) {

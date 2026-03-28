@@ -63,7 +63,7 @@ public class HandShakerCommand {
                         .then(Commands.argument("page", IntegerArgumentType.integer(1))
                             .executes(HandShakerCommand::showPlayerHistoryWithPage))))
                 .then(Commands.literal("mod")
-                    .then(Commands.argument("modName", StringArgumentType.string())
+                    .then(Commands.argument("modToken", StringArgumentType.string())
                         .suggests(HandShakerCommand::suggestAllMods)
                         .executes(HandShakerCommand::showModInfo)))
                 .then(Commands.literal("diagnostic")
@@ -72,13 +72,19 @@ public class HandShakerCommand {
                         .executes(HandShakerCommand::exportDiagnosticReport))))
             .then(Commands.literal("config")
                 .executes(HandShakerCommand::showConfig)
+                .then(Commands.literal("compatibility")
+                    .then(Commands.argument("subparam", StringArgumentType.word())
+                        .suggests(HandShakerCommand::suggestCompatSubparams)
+                        .then(Commands.argument("value", StringArgumentType.word())
+                            .suggests(HandShakerCommand::suggestCompatValues)
+                            .executes(HandShakerCommand::setCompatValueDynamic))))
                 .then(Commands.argument("param", StringArgumentType.word())
                     .suggests(HandShakerCommand::suggestConfigParams)
                     .then(Commands.argument("value", StringArgumentType.word())
                         .suggests(HandShakerCommand::suggestConfigValues)
                         .executes(HandShakerCommand::setConfigValueDynamic))))
             .then(Commands.literal("mode")
-                .then(Commands.argument("list", StringArgumentType.word())
+                .then(Commands.argument("ruleList", StringArgumentType.word())
                     .suggests(HandShakerCommand::suggestModeLists)
                     .then(Commands.argument("action", StringArgumentType.word())
                         .suggests(HandShakerCommand::suggestCurrentModeState)
@@ -171,7 +177,7 @@ public class HandShakerCommand {
     }
 
     private static int showDiagnostic(CommandContext<CommandSourceStack> ctx) {
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         if (!config.isDiagnosticCommandEnabled()) {
             ctx.getSource().sendFailure(Component.literal("Diagnostic command is disabled in config"));
             return 0;
@@ -196,14 +202,14 @@ public class HandShakerCommand {
     }
 
     private static int exportDiagnosticReport(CommandContext<CommandSourceStack> ctx) {
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         if (!config.isDiagnosticCommandEnabled()) {
             ctx.getSource().sendFailure(Component.literal("Diagnostic command is disabled in config"));
             return 0;
         }
 
         PlayerHistoryDatabase db = HandShakerServerMod.getInstance().getPlayerHistoryDb();
-        Path exportDir = HandShakerServerMod.getInstance().getBlacklistConfig().getConfigDirPath().resolve("exports");
+        Path exportDir = HandShakerServerMod.getInstance().getConfigManager().getConfigDirPath().resolve("exports");
         String handShakerVersion = resolveHandShakerVersion();
         String serverInfo = ctx.getSource().getServer().getServerModName();
         String minecraftInfo = ctx.getSource().getServer().getServerVersion();
@@ -236,7 +242,7 @@ public class HandShakerCommand {
 
 
     private static int showConfiguredModsWithPage(CommandContext<CommandSourceStack> ctx, int pageNum) {
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         Map<String, ConfigState.ModConfig> mods = config.getModConfigMap();
 
         String title = "Configured Mods";
@@ -330,7 +336,7 @@ public class HandShakerCommand {
 
     private static int showAllModsWithPage(CommandContext<CommandSourceStack> ctx, int pageNum) {
         PlayerHistoryDatabase db = HandShakerServerMod.getInstance().getPlayerHistoryDb();
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
 
         if (db == null || !db.isEnabled()) {
             ctx.getSource().sendFailure(Component.literal("Player history database not available"));
@@ -353,7 +359,7 @@ public class HandShakerCommand {
 
         List<Map.Entry<String, Integer>> sortedMods = paged.items();
         CommandHelper.Page<Map.Entry<String, Integer>> page = paged.page();
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
 
         String title = "All Mods";
         ctx.getSource().sendSystemMessage(sectionHeader(title));
@@ -417,13 +423,13 @@ public class HandShakerCommand {
 
 
     private static int showModInfo(CommandContext<CommandSourceStack> ctx) {
-        String modName = StringArgumentType.getString(ctx, "modName");
+        String modToken = StringArgumentType.getString(ctx, "modToken");
         PlayerHistoryDatabase db = HandShakerServerMod.getInstance().getPlayerHistoryDb();
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
 
         return executeAsyncDatabase(
             ctx,
-            () -> InfoCommandOperations.loadModInfo(db, modName, true, config::isModIgnored),
+            () -> InfoCommandOperations.loadModInfo(db, modToken, true, config::isModIgnored),
             result -> renderModInfo(ctx, result),
             throwable -> ctx.getSource().sendFailure(Component.literal("Failed to load mod info: " + rootMessage(throwable)))
         );
@@ -442,7 +448,7 @@ public class HandShakerCommand {
     private static int showPlayerHistoryWithPage(CommandContext<CommandSourceStack> ctx, int pageNum) {
         String playerName = StringArgumentType.getString(ctx, "playerName");
         PlayerHistoryDatabase db = HandShakerServerMod.getInstance().getPlayerHistoryDb();
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         ServerPlayer online = ctx.getSource().getServer().getPlayerList().getPlayerByName(playerName);
         UUID onlineUuid = online != null ? online.getUUID() : null;
 
@@ -455,7 +461,7 @@ public class HandShakerCommand {
     }
 
     private static int reload(CommandContext<CommandSourceStack> ctx) {
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         config.load();
         Component message = Component.literal("✓ HandShaker config reloaded").withColor(SUCCESS_GREEN_COLOR);
         ctx.getSource().sendSuccess(() -> message, true);
@@ -465,7 +471,7 @@ public class HandShakerCommand {
 
 
     private static int showConfig(CommandContext<CommandSourceStack> ctx) {
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         String title = "HandShaker Configuration";
         ctx.getSource().sendSystemMessage(sectionHeader(title));
         
@@ -492,10 +498,15 @@ public class HandShakerCommand {
         return setConfigValue(ctx, param);
     }
 
+    private static int setCompatValueDynamic(CommandContext<CommandSourceStack> ctx) {
+        String subparam = StringArgumentType.getString(ctx, "subparam");
+        return setConfigValue(ctx, "compat_" + subparam);
+    }
+
 
     private static int setConfigValue(CommandContext<CommandSourceStack> ctx, String param) {
         String value = StringArgumentType.getString(ctx, "value");
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         Set<String> currentPlayerMods = null;
         if (ctx.getSource().getEntity() instanceof ServerPlayer player) {
             currentPlayerMods = HandShakerServerMod.getInstance().getClientMods(player.getUUID());
@@ -526,15 +537,15 @@ public class HandShakerCommand {
 
 
     private static int setMode(CommandContext<CommandSourceStack> ctx) {
-        String list = StringArgumentType.getString(ctx, "list");
+        String ruleList = StringArgumentType.getString(ctx, "ruleList");
         String action = StringArgumentType.getString(ctx, "action");
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
 
         ConfigCommandOperations.MutationResult result = ConfigCommandOperations.applyModeToggle(
             config,
             config.getConfigDirPath(),
             LoggerAdapter.fromLoaderLogger(HandShakerServerMod.LOGGER),
-            list,
+            ruleList,
             action
         );
 
@@ -560,7 +571,7 @@ public class HandShakerCommand {
     private static int addMod(CommandContext<CommandSourceStack> ctx) {
         String mod = StringArgumentType.getString(ctx, "mod").toLowerCase();
         String mode = StringArgumentType.getString(ctx, "mode").toLowerCase();
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         if (!CommandHelper.isValidMode(mode)) {
             ctx.getSource().sendFailure(Component.literal("Invalid mode. Use: required, blacklisted, or allowed"));
             return 0;
@@ -583,7 +594,7 @@ public class HandShakerCommand {
         String mod = StringArgumentType.getString(ctx, "mod").toLowerCase();
         String mode = StringArgumentType.getString(ctx, "mode").toLowerCase();
         String action = StringArgumentType.getString(ctx, "action").toLowerCase();
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         if (!CommandHelper.isValidMode(mode)) {
             ctx.getSource().sendFailure(Component.literal("Invalid mode. Use: required, blacklisted, or allowed"));
             return 0;
@@ -610,7 +621,7 @@ public class HandShakerCommand {
     private static int changeMod(CommandContext<CommandSourceStack> ctx) {
         String mod = StringArgumentType.getString(ctx, "mod").toLowerCase();
         String mode = StringArgumentType.getString(ctx, "mode").toLowerCase();
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         if (!CommandHelper.isValidMode(mode)) {
             ctx.getSource().sendFailure(Component.literal("Invalid mode. Use: required, blacklisted, or allowed"));
             return 0;
@@ -630,7 +641,7 @@ public class HandShakerCommand {
 
     private static int addAllMods(CommandContext<CommandSourceStack> ctx) {
         String mode = StringArgumentType.getString(ctx, "mode");
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
 
         if (!(ctx.getSource().getEntity() instanceof ServerPlayer senderPlayer)) {
             ctx.getSource().sendFailure(Component.literal("Only players can use the * wildcard"));
@@ -661,7 +672,7 @@ public class HandShakerCommand {
     private static int addAllModsWithAction(CommandContext<CommandSourceStack> ctx) {
         String mode = StringArgumentType.getString(ctx, "mode");
         String action = StringArgumentType.getString(ctx, "action");
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
 
         if (!(ctx.getSource().getEntity() instanceof ServerPlayer senderPlayer)) {
             ctx.getSource().sendFailure(Component.literal("Only players can use the * wildcard"));
@@ -693,7 +704,7 @@ public class HandShakerCommand {
         String mod = StringArgumentType.getString(ctx, "mod").toLowerCase();
         String mode = StringArgumentType.getString(ctx, "mode").toLowerCase();
         String action = StringArgumentType.getString(ctx, "action").toLowerCase();
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         if (!CommandHelper.isValidMode(mode)) {
             ctx.getSource().sendFailure(Component.literal("Invalid mode. Use: required, blacklisted, or allowed"));
             return 0;
@@ -720,7 +731,7 @@ public class HandShakerCommand {
 
     private static int removeMod(CommandContext<CommandSourceStack> ctx) {
         String mod = StringArgumentType.getString(ctx, "mod").toLowerCase();
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         boolean removed = ModRuleCommandOperations.removeModRule(mod, config::removeModConfig);
         if (!removed) {
             ctx.getSource().sendFailure(Component.literal("Mod not found: " + mod));
@@ -741,7 +752,7 @@ public class HandShakerCommand {
             modId = "*";
         }
 
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
 
         if (modId.equals("*")) {
             if (!(ctx.getSource().getEntity() instanceof ServerPlayer senderPlayer)) {
@@ -771,7 +782,7 @@ public class HandShakerCommand {
 
     private static int removeIgnore(CommandContext<CommandSourceStack> ctx) {
         String mod = StringArgumentType.getString(ctx, "mod");
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         boolean removed = IgnoreCommandOperations.removeIgnoredMod(mod, config::removeIgnoredMod);
         if (removed) {
             config.save();
@@ -784,7 +795,7 @@ public class HandShakerCommand {
 
 
     private static int listIgnored(CommandContext<CommandSourceStack> ctx) {
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         String title = "Ignored Mods";
 
         ctx.getSource().sendSystemMessage(sectionHeader(title));
@@ -823,7 +834,7 @@ public class HandShakerCommand {
         java.util.function.Consumer<T> onSuccess,
         java.util.function.Consumer<Throwable> onFailure
     ) {
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         return CommandRuntimeOperations.executeAsyncDatabase(
             config.isAsyncDatabaseOperations(),
             HandShakerServerMod.getInstance().getScheduler(),
@@ -943,7 +954,7 @@ public class HandShakerCommand {
             return 0;
         }
         Set<String> mods = HandShakerServerMod.getInstance().getClientMods(player.getUUID());
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         if (mods == null || mods.isEmpty()) {
             ctx.getSource().sendSystemMessage(Component.literal("No mod list found for " + playerName).withColor(YELLOW));
             return Command.SINGLE_SUCCESS;
@@ -1037,7 +1048,7 @@ public class HandShakerCommand {
             return 0;
         }
 
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         Set<String> mods = HandShakerServerMod.getInstance().getClientMods(player.getUUID());
         if (mods == null || mods.isEmpty()) {
             ctx.getSource().sendFailure(Component.literal("Player has no mods"));
@@ -1178,6 +1189,20 @@ public class HandShakerCommand {
         return builder.buildFuture();
     }
 
+    private static CompletableFuture<Suggestions> suggestCompatSubparams(CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
+        for (String sp : CommandSuggestionOperations.compatSubparamSuggestions(builder.getRemaining())) {
+            builder.suggest(sp);
+        }
+        return builder.buildFuture();
+    }
+
+    private static CompletableFuture<Suggestions> suggestCompatValues(CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
+        for (String value : CommandSuggestionOperations.filterByPrefix(CommandSuggestionOperations.BOOLEAN_VALUES, builder.getRemaining())) {
+            builder.suggest(value);
+        }
+        return builder.buildFuture();
+    }
+
     private static CompletableFuture<Suggestions> suggestConfigValues(CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
         String param = null;
         try {
@@ -1185,7 +1210,7 @@ public class HandShakerCommand {
         } catch (IllegalArgumentException ignored) {
         }
 
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         for (String value : CommandSuggestionOperations.configValueSuggestions(
             param != null ? param.toLowerCase() : "", config.getAvailableActions())) {
             builder.suggest(value);
@@ -1203,12 +1228,12 @@ public class HandShakerCommand {
     private static CompletableFuture<Suggestions> suggestCurrentModeState(CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
         String listName = null;
         try {
-            listName = StringArgumentType.getString(ctx, "list").toLowerCase();
+            listName = StringArgumentType.getString(ctx, "ruleList").toLowerCase();
         } catch (IllegalArgumentException ignored) {
         }
 
         if (listName != null) {
-            ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+            ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
             boolean isCurrentlyEnabled = switch (listName) {
                 case "mods_required" -> config.areModsRequiredEnabled();
                 case "mods_blacklisted" -> config.areModsBlacklistedEnabled();
@@ -1228,7 +1253,7 @@ public class HandShakerCommand {
     }
 
     private static CompletableFuture<Suggestions> suggestActions(CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         List<String> actions = CommandSuggestionOperations.actionSuggestions(config.getAvailableActions(), false, true);
         for (String action : CommandSuggestionOperations.filterByPrefix(actions, builder.getRemaining())) {
             builder.suggest(action);
@@ -1244,7 +1269,7 @@ public class HandShakerCommand {
     }
 
     private static CompletableFuture<Suggestions> suggestConfiguredMods(CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         for (String suggestion : CommandSuggestionOperations.autoQuotedSuggestions(
             builder.getRemaining(),
             CommandHelper.sanitizeModSuggestions(config.getModConfigMap().keySet())
@@ -1255,7 +1280,7 @@ public class HandShakerCommand {
     }
 
     private static CompletableFuture<Suggestions> suggestIgnoredMods(CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
-        ConfigManager config = HandShakerServerMod.getInstance().getBlacklistConfig();
+        ConfigManager config = HandShakerServerMod.getInstance().getConfigManager();
         for (String suggestion : CommandSuggestionOperations.autoQuotedSuggestions(builder.getRemaining(), config.getIgnoredMods())) {
             builder.suggest(suggestion);
         }

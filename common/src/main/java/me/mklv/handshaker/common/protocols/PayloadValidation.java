@@ -337,9 +337,9 @@ public class PayloadValidation {
         callbacks.checkPlayer(playerId, playerName, newInfo);
 
         // 9. Mark as handshake-checked only if the mod list has already been processed.
-        // If integrity arrives before the mod list, do NOT set checked=true yet —
+        // If integrity arrives before the mod list, do NOT set handshakeChecked=true yet —
         // validateModList must still run to evaluate blacklist/whitelist rules.
-        // If mod list was already processed (modListNonce != null), preserve checked=true.
+        // If mod list was already processed (modListNonce != null), preserve handshakeChecked=true.
         boolean modListAlreadyProcessed = newInfo.modListNonce() != null;
         ClientInfo checkedInfo = new ClientInfo(
             newInfo.hasHandshakeClient(),
@@ -417,7 +417,7 @@ public class PayloadValidation {
         callbacks.checkPlayer(playerId, playerName, newInfo);
 
         // 7. Mark as checked only if the mod list has already been processed.
-        // Velton payload can arrive before the mod list — do NOT set checked=true yet
+        // Velton payload can arrive before the mod list — do NOT set handshakeChecked=true yet
         // or validateModList will skip the blacklist check entirely.
         boolean modListAlreadyProcessed = newInfo.modListNonce() != null;
         ClientInfo checkedInfo = new ClientInfo(

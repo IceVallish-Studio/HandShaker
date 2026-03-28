@@ -219,7 +219,34 @@ public class ConfigManager extends CommonConfigManagerBase {
 
                 @Override
                 public void disconnect(String message) {
-                    player.connection.disconnect(Component.literal(message));
+                    if (player.connection == null) {
+                        return;
+                    }
+
+                    HandShakerServer serverInstance = HandShakerServer.getInstance();
+                    if (serverInstance == null || serverInstance.getServer() == null) {
+                        return;
+                    }
+                    MinecraftServer server = serverInstance.getServer();
+                    if (server.getPlayerList().getPlayer(player.getUUID()) == null) {
+                        return;
+                    }
+
+                    String reason = (message == null || message.isBlank())
+                        ? getNoHandshakeKickMessage()
+                        : message;
+
+                    try {
+                        String command = "kick " + player.getName().getString() + " " + reason;
+                        server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), command);
+                        return;
+                    } catch (Exception ex) {
+                        HandShakerServer.LOGGER.warn("Failed to execute kick command with custom reason, falling back to direct disconnect: {}", ex.getMessage());
+                    }
+
+                    if (server.getPlayerList().getPlayer(player.getUUID()) != null && player.connection != null) {
+                        player.connection.disconnect(Component.literal(reason));
+                    }
                 }
 
                 @Override

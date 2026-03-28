@@ -63,7 +63,7 @@ public class HandShakerCommand {
                         .then(Commands.argument("page", IntegerArgumentType.integer(1))
                             .executes(HandShakerCommand::showPlayerHistoryWithPage))))
                 .then(Commands.literal("mod")
-                    .then(Commands.argument("modName", StringArgumentType.string())
+                    .then(Commands.argument("modToken", StringArgumentType.string())
                         .suggests(HandShakerCommand::suggestAllMods)
                         .executes(HandShakerCommand::showModInfo)))
                 .then(Commands.literal("diagnostic")
@@ -72,13 +72,19 @@ public class HandShakerCommand {
                         .executes(HandShakerCommand::exportDiagnosticReport))))
             .then(Commands.literal("config")
                 .executes(HandShakerCommand::showConfig)
+                .then(Commands.literal("compatibility")
+                    .then(Commands.argument("subparam", StringArgumentType.word())
+                        .suggests(HandShakerCommand::suggestCompatSubparams)
+                        .then(Commands.argument("value", StringArgumentType.word())
+                            .suggests(HandShakerCommand::suggestCompatValues)
+                            .executes(HandShakerCommand::setCompatValueDynamic))))
                 .then(Commands.argument("param", StringArgumentType.word())
                     .suggests(HandShakerCommand::suggestConfigParams)
                     .then(Commands.argument("value", StringArgumentType.word())
                         .suggests(HandShakerCommand::suggestConfigValues)
                         .executes(HandShakerCommand::setConfigValueDynamic))))
             .then(Commands.literal("mode")
-                .then(Commands.argument("list", StringArgumentType.word())
+                .then(Commands.argument("ruleList", StringArgumentType.word())
                     .suggests(HandShakerCommand::suggestModeLists)
                     .then(Commands.argument("action", StringArgumentType.word())
                         .suggests(HandShakerCommand::suggestCurrentModeState)
@@ -205,6 +211,11 @@ public class HandShakerCommand {
 
     private static int setConfigValueDynamic(CommandContext<CommandSourceStack> ctx) {
         return setConfigValue(ctx, StringArgumentType.getString(ctx, "param"));
+    }
+
+    private static int setCompatValueDynamic(CommandContext<CommandSourceStack> ctx) {
+        String subparam = StringArgumentType.getString(ctx, "subparam");
+        return setConfigValue(ctx, "compat_" + subparam);
     }
 
     private static int setConfigValue(CommandContext<CommandSourceStack> ctx, String param) {
@@ -615,13 +626,13 @@ public class HandShakerCommand {
     }
 
     private static int showModInfo(CommandContext<CommandSourceStack> ctx) {
-        String modName = StringArgumentType.getString(ctx, "modName");
+        String modToken = StringArgumentType.getString(ctx, "modToken");
         PlayerHistoryDatabase db = HandShakerServer.getInstance().getPlayerHistoryDb();
         ConfigManager config = HandShakerServer.getInstance().getConfigManager();
 
         return executeAsyncDatabase(
             ctx,
-            () -> InfoCommandOperations.loadModInfo(db, modName, true, config::isIgnored),
+            () -> InfoCommandOperations.loadModInfo(db, modToken, true, config::isModIgnored),
             result -> renderModInfo(ctx, result),
             throwable -> ctx.getSource().sendFailure(Component.literal("Failed to load mod info: " + rootMessage(throwable)))
         );
@@ -652,7 +663,7 @@ public class HandShakerCommand {
     }
 
     private static int setMode(CommandContext<CommandSourceStack> ctx) {
-        String listName = StringArgumentType.getString(ctx, "list").toLowerCase();
+        String listName = StringArgumentType.getString(ctx, "ruleList").toLowerCase();
         String action = StringArgumentType.getString(ctx, "action").toLowerCase();
         ConfigManager config = HandShakerServer.getInstance().getConfigManager();
 
@@ -757,6 +768,20 @@ public class HandShakerCommand {
         return builder.buildFuture();
     }
 
+    private static CompletableFuture<Suggestions> suggestCompatSubparams(CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
+        for (String sp : CommandSuggestionOperations.compatSubparamSuggestions(builder.getRemaining())) {
+            builder.suggest(sp);
+        }
+        return builder.buildFuture();
+    }
+
+    private static CompletableFuture<Suggestions> suggestCompatValues(CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
+        for (String value : CommandSuggestionOperations.filterByPrefix(CommandSuggestionOperations.BOOLEAN_VALUES, builder.getRemaining())) {
+            builder.suggest(value);
+        }
+        return builder.buildFuture();
+    }
+
     private static CompletableFuture<Suggestions> suggestConfigValues(CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
         String param = StringArgumentType.getString(ctx, "param");
         ConfigManager config = HandShakerServer.getInstance().getConfigManager();
@@ -800,7 +825,7 @@ public class HandShakerCommand {
     private static CompletableFuture<Suggestions> suggestCurrentModeState(CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
         String listName = null;
         try {
-            listName = StringArgumentType.getString(ctx, "list").toLowerCase();
+            listName = StringArgumentType.getString(ctx, "ruleList").toLowerCase();
         } catch (IllegalArgumentException ignored) {
         }
 

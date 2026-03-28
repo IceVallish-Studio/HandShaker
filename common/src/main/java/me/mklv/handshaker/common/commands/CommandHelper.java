@@ -50,12 +50,12 @@ public class CommandHelper {
 
     public static List<String> getConfigFields() {
         return List.of(
-            "Force HandShaker Mod",
-            "Compatibility",
-            "Enforce Whitelisted Mod List",
-            "Bedrock Players",
-            "Player Database",
-            "Required Modpack Hashes"
+            "Handshaker Enforcement",
+            "compatibility",
+            "Whitelist Enforcement",
+            "Bedrock Policy",
+            "Database",
+            "Modpack Hashes"
         );
     }
 

@@ -95,9 +95,9 @@ public class HandShakerCommand{
                     .then(Commands.argument("page", IntegerArgumentType.integer(1))
                         .executes(ctx -> showPlayerHistory(ctx.getSource(), ctx.getArgument("playerName", String.class), ctx.getArgument("page", int.class))))))
             .then(Commands.literal("mod")
-                .then(Commands.argument("modName", StringArgumentType.string())
+                .then(Commands.argument("modToken", StringArgumentType.string())
                     .suggests(this::suggestAllMods)
-                    .executes(ctx -> showModInfo(ctx.getSource(), getModToken(ctx, "modName")))))
+                    .executes(ctx -> showModInfo(ctx.getSource(), getModToken(ctx, "modToken")))))
             .then(Commands.literal("diagnostic")
                 .executes(ctx -> showDiagnostic(ctx.getSource()))
                 .then(Commands.literal("export")
@@ -107,6 +107,14 @@ public class HandShakerCommand{
     private LiteralArgumentBuilder<CommandSourceStack> buildConfigCommand() {
         return Commands.literal("config")
             .executes(ctx -> showConfig(ctx.getSource()))
+            .then(Commands.literal("compatibility")
+                .then(Commands.argument("subparam", StringArgumentType.string())
+                    .suggests(this::suggestCompatSubparams)
+                    .then(Commands.argument("value", StringArgumentType.string())
+                        .suggests(this::suggestCompatValues)
+                        .executes(ctx -> setConfigValue(ctx.getSource(),
+                            "compat_" + ctx.getArgument("subparam", String.class),
+                            ctx.getArgument("value", String.class))))))
             .then(Commands.argument("param", StringArgumentType.string())
                 .suggests(this::suggestConfigParams)
                 .then(Commands.argument("value", StringArgumentType.greedyString())
@@ -118,11 +126,11 @@ public class HandShakerCommand{
 
     private LiteralArgumentBuilder<CommandSourceStack> buildModeCommand() {
         return Commands.literal("mode")
-            .then(Commands.argument("list", StringArgumentType.string())
+            .then(Commands.argument("ruleList", StringArgumentType.string())
                 .suggests(this::suggestModeLists)
                 .then(Commands.argument("action", StringArgumentType.string())
                     .suggests(this::suggestCurrentModeState)
-                    .executes(ctx -> setMode(ctx.getSource(), ctx.getArgument("list", String.class), ctx.getArgument("action", String.class)))));
+                    .executes(ctx -> setMode(ctx.getSource(), ctx.getArgument("ruleList", String.class), ctx.getArgument("action", String.class)))));
     }
 
     private LiteralArgumentBuilder<CommandSourceStack> buildManageCommand() {
@@ -887,6 +895,22 @@ public class HandShakerCommand{
         return builder.buildFuture();
     }
 
+    private CompletableFuture<Suggestions> suggestCompatSubparams(
+            CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
+        for (String sp : CommandSuggestionOperations.compatSubparamSuggestions(builder.getRemaining())) {
+            builder.suggest(sp);
+        }
+        return builder.buildFuture();
+    }
+
+    private CompletableFuture<Suggestions> suggestCompatValues(
+            CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
+        for (String value : CommandSuggestionOperations.filterByPrefix(CommandSuggestionOperations.BOOLEAN_VALUES, builder.getRemaining())) {
+            builder.suggest(value);
+        }
+        return builder.buildFuture();
+    }
+
     private CompletableFuture<Suggestions> suggestConfigValues(
             CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
         String param = null;
@@ -957,7 +981,7 @@ public class HandShakerCommand{
     private CompletableFuture<Suggestions> suggestCurrentModeState(
             CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
         try {
-            String listName = ctx.getArgument("list", String.class).toLowerCase(Locale.ROOT);
+            String listName = ctx.getArgument("ruleList", String.class).toLowerCase(Locale.ROOT);
             boolean isCurrentlyEnabled = switch (listName) {
                 case "mods_required" -> config.areModsRequiredEnabled();
                 case "mods_blacklisted" -> config.areModsBlacklistedEnabled();
