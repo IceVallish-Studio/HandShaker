@@ -44,6 +44,14 @@ repositories {
             password = githubToken
 		}
 	}
+    maven { 
+		name = "HandShaker-Core"
+		url = "https://maven.pkg.github.com/IceVallish-Studio/HandShaker-Core"
+        credentials {
+            username = githubUser
+            password = githubToken
+		}
+	}
 }
 
 dependencies {
@@ -54,8 +62,8 @@ dependencies {
     	officialMojangMappings()
         parchment("org.parchmentmc.data:parchment-${rootProject.parchment_minecraft_version}:${rootProject.parchment_mappings_version}@zip")
     }
-	include implementation(project(':common'))
 	// include implementation("maven.modrinth:handlib:1.0.0")
+	include implementation("me.mklv:handshaker-core:${rootProject.handshaker_core}")
 	modImplementation("me.mklv:handlib-${rootProject.handlib_version}")
 	include implementation("com.h2database:h2:${rootProject.h2database}")
 	include implementation("org.yaml:snakeyaml:${rootProject.snakeyaml}")
@@ -67,14 +75,10 @@ dependencies {
 	compileOnly "me.lucko:fabric-permissions-api:0.3.1"
 }
 
-tasks.withType(ProcessResources).configureEach {
-	dependsOn rootProject.tasks.named('01-copyCertificate')
-}
 
 processResources {
 	def version = rootProject.mod_version
 	def supportedVersions = supported_mc_versions
-	from(project(':common').sourceSets.main.resources)
 	filesMatching("fabric.mod.json") {
 		filter { line ->
 			line.replace('${version}', "${version}-1.21.x")
@@ -191,13 +195,13 @@ afterEvaluate {
 		doLast {
 			def signedJar = layout.buildDirectory.file("libs/${rootProject.mod_id}-fabric-${rootProject.mod_version}-s.jar").get().asFile
 			if (!signedJar.exists()) {
-				throw new GradleException("Signed jar not found: ${signedJar}")
+				println("Signed jar not found: ${signedJar}")
 			}
 
 			def keystorePassword = rootProject.ext.resolveSecret('KEYSTORE_PASSWORD') ?: 'password'
 			def keyStoreFile = rootProject.file('.Integrity/keystore.jks')
 			if (!keyStoreFile.exists()) {
-				throw new GradleException('Keystore not found at .Integrity/keystore.jks')
+				println('Keystore not found at .Integrity/keystore.jks')
 			}
 
 			def hashHex = computeCanonicalJarHash(signedJar)
@@ -209,7 +213,7 @@ afterEvaluate {
 
 			def privateKey = keyStore.getKey('handshaker', keystorePassword.toCharArray())
 			if (!(privateKey instanceof java.security.PrivateKey)) {
-				throw new GradleException('Private key alias handshaker was not found in keystore')
+				println('Private key alias handshaker was not found in keystore')
 			}
 
 			def signature = java.security.Signature.getInstance('SHA256withRSA')

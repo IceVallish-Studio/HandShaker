@@ -24,13 +24,6 @@ tasks.create('00-loadDotEnv') {
     }
 }
 
-tasks.register('01-copyCertificate') {
-    copy {
-        from '.Integrity/public.cer'
-        into 'common/src/main/resources'
-    }
-}
-
 tasks.register('02-copyArtifacts') {
     def projectList = [
         'fabric',
@@ -68,7 +61,6 @@ tasks.register('02-copyArtifacts') {
 }
 
 tasks.named('build') {
-    dependsOn '01-copyCertificate'
     dependsOn '02-copyArtifacts'
 }
 

@@ -59,13 +59,20 @@ repositories {
             password = githubToken
         }
     }
+    maven { 
+		name = "HandShaker-Core"
+		url = "https://maven.pkg.github.com/IceVallish-Studio/HandShaker-Core"
+        credentials {
+            username = githubUser
+            password = githubToken
+		}
+	}
 }
 
 dependencies {
-    // Common module (shared config, database pooling, logging)
     implementation("me.mklv:handlib-${rootProject.handlib_version}")
-    implementation(project(':common'))
-    jarJar(project(':common'))
+    implementation("me.mklv:handshaker-core:${rootProject.handshaker_core}")
+    jarJar("me.mklv:handshaker-core:${rootProject.handshaker_core}")
     
     // Runtime dependencies
     implementation("com.h2database:h2:${rootProject.h2database}")
@@ -92,13 +99,10 @@ tasks.named('processResources') {
         file: [jarVersion: "${project.mod_version}-1.21.x"]
     ]
     inputs.properties replaceProperties
-    from(project(':common').sourceSets.main.resources)
     filesMatching('META-INF/neoforge.mods.toml') {
         expand replaceProperties
     }
 }
-
-processResources.dependsOn rootProject.tasks.named('01-copyCertificate')
 
 tasks.named('jar') {
     def keystoreDir = rootProject.projectDir
