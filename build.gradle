@@ -24,6 +24,12 @@ tasks.create('00-loadDotEnv') {
     }
 }
 
+tasks.register('publishPlatforms') {
+    group = 'publishing'
+    description = 'Publishes Fabric, NeoForge, and Paper artifacts to Modrinth and CurseForge.'
+    dependsOn(':fabric:publishPlatforms', ':neoforge:publishPlatforms', ':paper:publishPlatforms')
+}
+
 tasks.register('02-copyArtifacts') {
     def projectList = [
         'fabric',
