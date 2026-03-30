@@ -92,11 +92,18 @@ tasks.named('assemble') {
 }
 
 def modrinthToken = (rootProject.ext.resolveSecret('MODRINTH_TOKEN') ?: rootProject.ext.resolveSecret('modrinth.token'))?.toString()
-def modrinthProjectId = (findProperty('modrinth_id')?.toString()?.trim()?.with { it.empty ? null : it }
-    ?: findProperty('modrinth.projectId') ?: rootProject.ext.resolveSecret('MODRINTH_PROJECT_ID') ?: rootProject.ext.resolveSecret('modrinth.projectId'))?.toString()
+def modrinthProjectId = findProperty('modrinth_id')?.toString()?.trim()?.with { it.empty ? null : it }
 def curseforgeToken = (rootProject.ext.resolveSecret('CURSEFORGE_TOKEN') ?: rootProject.ext.resolveSecret('curseforge.token'))?.toString()
-def curseforgeProjectId = (findProperty('cursefirge_id')?.toString()?.trim()?.with { it.empty ? null : it }
-    ?: findProperty('curseforge.projectId') ?: rootProject.ext.resolveSecret('CURSEFORGE_PROJECT_ID') ?: rootProject.ext.resolveSecret('curseforge.projectId'))?.toString()
+def curseforgeProjectId = findProperty('cursefirge_id')?.toString()?.trim()?.with { it.empty ? null : it }
+def boolProp = { String key, boolean defaultValue = true ->
+    def value = findProperty(key)?.toString()?.trim()
+    if (value == null || value.isEmpty()) {
+        return defaultValue
+    }
+    return ['true', '1', 'yes', 'on'].contains(value.toLowerCase(Locale.ROOT))
+}
+def publishModrinth = boolProp('Publish_Modrinth', true)
+def publishCurseForge = boolProp('Publish_CurseForge', true)
 
 def propSplit = { String key, List defaultVal = [] ->
     def val = findProperty(key)?.toString()?.trim()
@@ -125,12 +132,20 @@ def publishConfig = [
     ]
 ]
 
+def loaderDisplayName = 'Paper'
+def publishMinecraftVersion = (publishConfig.modrinth.gameVersions && !publishConfig.modrinth.gameVersions.isEmpty())
+    ? publishConfig.modrinth.gameVersions[0].toString()
+    : plugin_version.toString()
+def publishDisplayName = "[${loaderDisplayName}] ${rootProject.mod_version} ${publishMinecraftVersion}"
+def modrinthVersionId = "${rootProject.mod_version}-${publishMinecraftVersion}+${loaderDisplayName}"
+
 def uploadArtifact = tasks.named('shadowJar').get().archiveFile.get().asFile
 
 modrinth {
     token = modrinthToken ?: ''
     projectId = modrinthProjectId ?: ''
-    versionNumber = "${project.version}+${publishConfig.modrinth.versionSuffix}"
+    versionName = publishDisplayName
+    versionNumber = modrinthVersionId
     versionType = publishConfig.modrinth.versionType
     changelog = publishConfig.modrinth.changelog
     uploadFile = uploadArtifact
@@ -141,23 +156,35 @@ modrinth {
 
 tasks.named('modrinth').configure {
     dependsOn(tasks.named('assemble'))
+    enabled = publishModrinth && modrinthProjectId != null && !modrinthProjectId.isBlank()
 }
 
 def curseForgeTaskType = plugins.getPlugin('net.darkhax.curseforgegradle').class.classLoader.loadClass('net.darkhax.curseforgegradle.TaskPublishCurseForge')
 
-tasks.register('publishCurseForge', curseForgeTaskType) {
-    dependsOn(tasks.named('assemble'))
-    apiToken = curseforgeToken ?: ''
+if (publishCurseForge && curseforgeProjectId != null && !curseforgeProjectId.isBlank()) {
+    tasks.register('publishCurseForge', curseForgeTaskType) {
+        dependsOn(tasks.named('assemble'))
+        apiToken = curseforgeToken ?: ''
 
-    def mainFile = upload(curseforgeProjectId ?: '0', uploadArtifact)
-    mainFile.releaseType = publishConfig.curseforge.releaseType
-    publishConfig.curseforge.gameVersions.each { mainFile.addGameVersion(it.toString()) }
-    if (publishConfig.curseforge.modLoaders) {
-        publishConfig.curseforge.modLoaders.each { mainFile.addModLoader(it.toString()) }
+        def mainFile = upload(curseforgeProjectId, uploadArtifact)
+        mainFile.displayName = publishDisplayName
+        mainFile.releaseType = publishConfig.curseforge.releaseType
+        publishConfig.curseforge.gameVersions.each { mainFile.addGameVersion(it.toString()) }
+        if (publishConfig.curseforge.modLoaders) {
+            publishConfig.curseforge.modLoaders.each { mainFile.addModLoader(it.toString()) }
+        }
+        mainFile.addEnvironment('server')
+        mainFile.changelogType = publishConfig.curseforge.changelogType
+        mainFile.changelog = publishConfig.curseforge.changelog
     }
-    mainFile.addEnvironment('server')
-    mainFile.changelogType = publishConfig.curseforge.changelogType
-    mainFile.changelog = publishConfig.curseforge.changelog
+} else {
+    tasks.register('publishCurseForge') {
+        group = 'publishing'
+        description = 'Skipped: CurseForge publishing disabled or cursefirge_id is not set.'
+        doLast {
+            logger.lifecycle('Skipping Paper CurseForge publish (Publish_CurseForge=false or cursefirge_id missing).')
+        }
+    }
 }
 
 tasks.register('publishPlatforms') {
