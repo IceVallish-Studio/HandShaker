@@ -24,6 +24,17 @@ tasks.create('00-loadDotEnv') {
     }
 }
 
+tasks.register('publishPlatforms') {
+    group = 'publishing'
+    description = 'Publishes artifacts for included loader projects to Modrinth and CurseForge.'
+
+    ['fabric', 'neoforge', 'paper'].each { loader ->
+        if (findProject(":${loader}") != null) {
+            dependsOn(":${loader}:publishPlatforms")
+        }
+    }
+}
+
 tasks.register('02-copyArtifacts') {
     def projectList = [
         'fabric',

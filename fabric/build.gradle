@@ -1,6 +1,8 @@
 plugins {
 	id 'fabric-loom'
 	id 'maven-publish'
+	id 'com.modrinth.minotaur'
+	id 'net.darkhax.curseforgegradle'
 }
 
 def githubUser = (findProperty('github.user') ?: rootProject.ext.dotEnv['github.user'] ?: rootProject.ext.dotEnv['GITHUB_ACTOR'] ?: System.getenv('GITHUB_ACTOR'))?.toString()
@@ -128,7 +130,7 @@ afterEvaluate {
         group = 'build'
         description = 'Signs the remapped Fabric client JAR.'
         dependsOn(tasks.named('remapJar'))
-		def signedJar = layout.buildDirectory.file("libs/${rootProject.mod_id}-fabric-${rootProject.mod_version}-s.jar")
+		def signedJar = layout.buildDirectory.file("libs/${rootProject.mod_id}-fabric-${rootProject.mod_version}-${rootProject.minecraft_version}-s.jar")
         inputs.file(rootProject.file('.Integrity/keystore.jks'))
         outputs.file(signedJar)
 
@@ -193,7 +195,7 @@ afterEvaluate {
 		dependsOn(tasks.named('signFabricJar'))
 
 		doLast {
-			def signedJar = layout.buildDirectory.file("libs/${rootProject.mod_id}-fabric-${rootProject.mod_version}-s.jar").get().asFile
+			def signedJar = layout.buildDirectory.file("libs/${rootProject.mod_id}-fabric-${rootProject.mod_version}-${rootProject.minecraft_version}-s.jar").get().asFile
 			if (!signedJar.exists()) {
 				println("Signed jar not found: ${signedJar}")
 			}
@@ -242,4 +244,147 @@ afterEvaluate {
 
 tasks.withType(JavaCompile).configureEach {
     options.compilerArgs.add("-Xlint:unchecked")
+}
+
+def modrinthToken = (rootProject.ext.resolveSecret('MODRINTH_TOKEN') ?: rootProject.ext.resolveSecret('modrinth.token'))?.toString()
+def modrinthProjectId = findProperty('modrinth_id')?.toString()?.trim()?.with { it.empty ? null : it }
+def curseforgeToken = (rootProject.ext.resolveSecret('CURSEFORGE_TOKEN') ?: rootProject.ext.resolveSecret('curseforge.token'))?.toString()
+def curseforgeProjectId = findProperty('cursefirge_id')?.toString()?.trim()?.with { it.empty ? null : it }
+def boolProp = { String key, boolean defaultValue = true ->
+	def value = findProperty(key)?.toString()?.trim()
+	if (value == null || value.isEmpty()) {
+		return defaultValue
+	}
+	return ['true', '1', 'yes', 'on'].contains(value.toLowerCase(Locale.ROOT))
+}
+def publishModrinth = boolProp('Publish_Modrinth', true)
+def publishCurseForge = boolProp('Publish_CurseForge', true)
+def propSplit = { String key, List defaultVal = [] ->
+	def val = findProperty(key)?.toString()?.trim()
+	(val != null && !val.empty) ? val.split(',').collect { it.trim() }.findAll { it } : defaultVal
+}
+
+def changelogText = {
+	def changelogFile = project.file('changelog.md')
+	changelogFile.exists() ? changelogFile.text : ''
+}.call()
+
+def publishConfig = [
+	modrinth: [
+		loaders: propSplit('modrinth_supported_loaders', ['fabric']),
+		gameVersions: propSplit('modrinth_supported_game_versions', [rootProject.minecraft_version]),
+		versionSuffix: findProperty('version_suffix')?.toString() ?: 'fabric',
+		versionType: findProperty('release_channel')?.toString() ?: 'release',
+		changelog: changelogText,
+		dependencies: [
+			required: propSplit('modrinth_required_dependencies'),
+			optional: [],
+			incompatible: [],
+			embedded: []
+		]
+	],
+	curseforge: [
+		releaseType: findProperty('release_channel')?.toString() ?: 'release',
+		changelogType: 'markdown',
+		changelog: changelogText,
+		modLoaders: propSplit('curseforge_supported_loaders'),
+		gameVersions: propSplit('curseforge_supported_game_versions', [rootProject.minecraft_version]),
+		dependencies: [
+			required: propSplit('curseforge_required_dependencies'),
+			optional: [],
+			incompatible: [],
+			embedded: []
+		]
+	]
+]
+
+def loaderDisplayName = 'Fabric'
+def publishMinecraftVersion = (publishConfig.modrinth.gameVersions && !publishConfig.modrinth.gameVersions.isEmpty())
+	? publishConfig.modrinth.gameVersions[0].toString()
+	: rootProject.minecraft_version.toString()
+def publishDisplayName = "[${loaderDisplayName}] ${rootProject.mod_version} ${publishMinecraftVersion}"
+def modrinthVersionId = "${rootProject.mod_version}-${publishMinecraftVersion}+${loaderDisplayName}"
+
+def uploadArtifact = layout.buildDirectory.file("libs/${rootProject.mod_id}-fabric-${rootProject.mod_version}-${rootProject.minecraft_version}-s.jar").get().asFile
+
+def applyCurseForgeDependencies = { Object fileRef, Map relationMap ->
+	def methodCandidates = [
+		required    : ['addRequirement', 'addRequiredDependency'],
+		optional    : ['addOptional', 'addOptionalDependency'],
+		incompatible: ['addIncompatibility', 'addIncompatible'],
+		embedded    : ['addEmbedded', 'addEmbeddedLibrary']
+	]
+
+	relationMap.each { relation, depIds ->
+		depIds.each { depId ->
+			def applied = false
+			methodCandidates.get(relation, []).each { candidate ->
+				if (!applied && fileRef.metaClass.respondsTo(fileRef, candidate, String)) {
+					fileRef."${candidate}"(depId.toString())
+					applied = true
+				}
+			}
+		}
+	}
+}
+
+modrinth {
+	token = modrinthToken ?: ''
+	projectId = modrinthProjectId ?: ''
+	versionName = publishDisplayName
+	versionNumber = modrinthVersionId
+	versionType = publishConfig.modrinth.versionType
+	changelog = publishConfig.modrinth.changelog
+	uploadFile = uploadArtifact
+	gameVersions = publishConfig.modrinth.gameVersions.collect { it.toString() }
+	loaders = publishConfig.modrinth.loaders.collect { it.toString() }
+	detectLoaders = false
+
+	dependencies {
+		publishConfig.modrinth.dependencies.required.each { required.project(it.toString()) }
+		publishConfig.modrinth.dependencies.optional.each { optional.project(it.toString()) }
+		publishConfig.modrinth.dependencies.incompatible.each { incompatible.project(it.toString()) }
+		publishConfig.modrinth.dependencies.embedded.each { embedded.project(it.toString()) }
+	}
+}
+
+tasks.named('modrinth').configure {
+	dependsOn(tasks.named('assemble'))
+	enabled = publishModrinth && modrinthProjectId != null && !modrinthProjectId.isBlank()
+}
+
+def curseForgeTaskType = plugins.getPlugin('net.darkhax.curseforgegradle').class.classLoader.loadClass('net.darkhax.curseforgegradle.TaskPublishCurseForge')
+
+if (publishCurseForge && curseforgeProjectId != null && !curseforgeProjectId.isBlank()) {
+	tasks.register('publishCurseForge', curseForgeTaskType) {
+		dependsOn(tasks.named('assemble'))
+		apiToken = curseforgeToken ?: ''
+
+		def mainFile = upload(curseforgeProjectId, uploadArtifact)
+		mainFile.displayName = publishDisplayName
+		mainFile.releaseType = publishConfig.curseforge.releaseType
+		publishConfig.curseforge.gameVersions.each { mainFile.addGameVersion(it.toString()) }
+		if (publishConfig.curseforge.modLoaders) {
+			publishConfig.curseforge.modLoaders.each { mainFile.addModLoader(it.toString()) }
+		}
+		mainFile.addEnvironment('client', 'server')
+		mainFile.changelogType = publishConfig.curseforge.changelogType
+		mainFile.changelog = publishConfig.curseforge.changelog
+
+		applyCurseForgeDependencies(mainFile, publishConfig.curseforge.dependencies ?: [:])
+	}
+} else {
+	tasks.register('publishCurseForge') {
+		group = 'publishing'
+		description = 'Skipped: CurseForge publishing disabled or cursefirge_id is not set.'
+		doLast {
+			logger.lifecycle('Skipping Fabric CurseForge publish (Publish_CurseForge=false or cursefirge_id missing).')
+		}
+	}
+}
+
+tasks.register('publishPlatforms') {
+	group = 'publishing'
+	description = 'Publishes Fabric artifact to Modrinth and CurseForge.'
+	dependsOn('modrinth', 'publishCurseForge')
 }
