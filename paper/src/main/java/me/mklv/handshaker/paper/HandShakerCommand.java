@@ -333,7 +333,7 @@ public class HandShakerCommand{
                 String actionLabel = CommandVisualOperations.actionDisplayLabel(modCfg);
                 String hoverText = CommandVisualOperations.changeHoverText(modCfg);
                 
-                Component modComponent = buildModComponent(entry.getKey(), statusColor, hoverText, CommandVisualOperations.manageChangeCommand("/handshakerv3", entry.getKey()));
+                Component modComponent = buildModComponent(entry.getKey(), statusColor, hoverText, CommandVisualOperations.manageChangeCommand("/handshaker", entry.getKey()));
                 Component removeBtn = Component.text(" [✕]")
                     .color(NamedTextColor.RED)
                     .hoverEvent(HoverEvent.showText(Component.text(CommandVisualOperations.removeHoverText())))
@@ -1102,7 +1102,7 @@ public class HandShakerCommand{
                     hoverText = hoverText + "\n\nActive on: " + preview;
                 }
 
-                Component modComponent = buildModComponent(displayName, statusColor, hoverText, CommandVisualOperations.infoModCommand("/handshakerv3", modToken));
+                Component modComponent = buildModComponent(displayName, statusColor, hoverText, CommandVisualOperations.infoModCommand("/handshaker", modToken));
                 player.sendMessage(modeTagComponent(modCfg)
                     .append(Component.text(" ").color(NamedTextColor.GRAY))
                     .append(modComponent)
