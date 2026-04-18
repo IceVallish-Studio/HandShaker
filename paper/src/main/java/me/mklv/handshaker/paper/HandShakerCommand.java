@@ -60,7 +60,9 @@ public class HandShakerCommand{
                     .then(handler.buildInfoCommand())
                     .then(handler.buildConfigCommand())
                     .then(handler.buildModeCommand())
-                    .then(handler.buildManageCommand());
+                    .then(handler.buildManageCommand())
+                    .then(Commands.literal("gui")
+                            .executes(ctx -> handler.openGui(ctx.getSource())));
             
             commands.register(
                     plugin.getPluginMeta(),
@@ -208,6 +210,15 @@ public class HandShakerCommand{
     }
 
     // ===== Command Handlers =====
+
+    private int openGui(CommandSourceStack source) {
+        if (!(source.getSender() instanceof Player player)) {
+            source.getSender().sendMessage(Component.text("This command can only be used by players").color(NamedTextColor.RED));
+            return 0;
+        }
+        plugin.getGui().openGui(player);
+        return 1;
+    }
 
     private int showHelp(CommandSourceStack source) {
         String title = "HandShaker v7 Commands";
