@@ -10,6 +10,7 @@ import me.mklv.handshaker.common.api.module.HandShakerEvent;
 import me.mklv.handshaker.common.api.module.HandShakerModule;
 import me.mklv.handshaker.common.api.module.ModuleContext;
 import me.mklv.handshaker.common.api.module.ModuleLoader;
+import me.mklv.handshaker.paper.gui.HandShakerGui;
 import me.mklv.handshaker.paper.utils.HandShakerListener;
 import me.mklv.handshaker.common.database.PlayerHistoryDatabase;
 import me.mklv.handshaker.common.database.SQLitePlayerHistoryDatabase;
@@ -49,6 +50,7 @@ public class HandShakerPlugin extends JavaPlugin {
     private ConfigManager configManager;
     private PlayerHistoryDatabase playerHistoryDb;
     private PluginProtocolHandler protocolHandler;
+    private HandShakerGui gui;
     private LocalRestApiServer localRestApiServer;
 
     @Override
@@ -93,7 +95,8 @@ public class HandShakerPlugin extends JavaPlugin {
         protocolHandler.registerPluginChannels();
         
         // Register event listeners
-        getServer().getPluginManager().registerEvents(new HandShakerListener(this, clients), this);
+        gui = new HandShakerGui(this);
+        getServer().getPluginManager().registerEvents(new HandShakerListener(this, clients, gui), this);
         
         getLogger().info("HandShaker plugin enabled (Paper/Folia compatible)");
         
@@ -218,6 +221,10 @@ public class HandShakerPlugin extends JavaPlugin {
     }
 
     // Getters
+    public HandShakerGui getGui() {
+        return gui;
+    }
+
     public ConfigManager getConfigManager() {
         return configManager;
     }
