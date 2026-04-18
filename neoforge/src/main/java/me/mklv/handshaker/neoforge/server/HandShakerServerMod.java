@@ -65,6 +65,7 @@ import java.util.concurrent.TimeUnit;
 @Mod(HandShakerServerMod.MOD_ID)
 public class HandShakerServerMod {
     public static final String MOD_ID = "hand_shaker";
+
     public static final Logger LOGGER = LogUtils.getLogger();
     private static HandShakerServerMod instance;
 
@@ -335,6 +336,11 @@ public class HandShakerServerMod {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
         payloadValidator.clearNonceHistory(player.getUUID());
+        String challenge = payloadValidator.issueChallenge(player.getUUID());
+        
+        // Send challenge to player
+        player.connection.send(new net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket(new HandshakeChallengePayload(challenge)));
+
         clients.put(player.getUUID(), new ClientInfo(Collections.emptySet(), false, false, null, null, null));
 
         scheduleSafely(() -> {
@@ -344,7 +350,7 @@ public class HandShakerServerMod {
                 if (server.getPlayerList().getPlayer(player.getUUID()) == null) return;
                 ClientInfo info = clients.computeIfAbsent(player.getUUID(), uuid -> new ClientInfo(Collections.emptySet(), false, false, null, null, null));
                 if (info.handshakeChecked()) return; // Skip if already checked (prevents duplicate ban execution)
-                configManager.checkPlayer(player, info);
+                configManager.checkPlayer(player, info, true, true);
             });
         }, configManager.getHandshakeTimeoutSeconds(), TimeUnit.SECONDS);
     }
@@ -443,6 +449,15 @@ public class HandShakerServerMod {
                 LOGGER.warn(message);
             }
         });
+    }
+
+    public record HandshakeChallengePayload(String challenge) implements CustomPacketPayload {
+        public static final CustomPacketPayload.Type<HandshakeChallengePayload> TYPE = PayloadTypeCompat.payloadType("hand-shaker", "challenge");
+
+        public static final StreamCodec<ByteBuf, HandshakeChallengePayload> CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, HandshakeChallengePayload::challenge,
+                HandshakeChallengePayload::new);
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
     public record ModsListPayload(String mods, String modListHash, String nonce) implements CustomPacketPayload {

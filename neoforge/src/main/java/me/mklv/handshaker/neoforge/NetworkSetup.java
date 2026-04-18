@@ -14,7 +14,7 @@ public class NetworkSetup {
 
     @SubscribeEvent
     public static void registerPayloads(RegisterPayloadHandlersEvent event) {
-        final PayloadRegistrar registrar = event.registrar("1").optional();
+        final PayloadRegistrar registrar = event.registrar("hand-shaker").optional();
 
         // Register payloads for client->server communication
         registrar.playToServer(
@@ -27,6 +27,12 @@ public class NetworkSetup {
                 HandShakerServerMod.IntegrityPayload.TYPE,
                 HandShakerServerMod.IntegrityPayload.CODEC,
                 (payload, context) -> withServer(server -> server.handleIntegrity(payload, context))
+        );
+
+        registrar.playToClient(
+                HandShakerServerMod.HandshakeChallengePayload.TYPE,
+                HandShakerServerMod.HandshakeChallengePayload.CODEC,
+                (payload, context) -> HandShakerClientMod.getInstance().handleChallenge(payload, context)
         );
 
         // Velton is optional - register without requiring it on the client

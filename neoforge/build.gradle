@@ -98,6 +98,15 @@ tasks.named('processResources') {
     filesMatching('META-INF/neoforge.mods.toml') {
         expand replaceProperties
     }
+
+    // Extract resources from handshaker-core dependency to mod root
+    from({
+        def coreJar = configurations.compileClasspath.find { it.name.startsWith("handshaker-core") }
+        coreJar ? zipTree(coreJar) : []
+    }) {
+        include 'public.cer'
+        include 'configs/**'
+    }
 }
 
 tasks.named('jar') {

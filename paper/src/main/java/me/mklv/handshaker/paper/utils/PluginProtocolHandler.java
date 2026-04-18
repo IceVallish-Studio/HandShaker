@@ -149,6 +149,7 @@ public class PluginProtocolHandler {
         // Register outgoing channels
         Bukkit.getMessenger().registerOutgoingPluginChannel(plugin, HandShakerPlugin.MODS_CHANNEL);
         Bukkit.getMessenger().registerOutgoingPluginChannel(plugin, HandShakerPlugin.INTEGRITY_CHANNEL);
+        Bukkit.getMessenger().registerOutgoingPluginChannel(plugin, HandShakerPlugin.CHALLENGE_CHANNEL);
         Bukkit.getMessenger().registerOutgoingPluginChannel(plugin, HandShakerPlugin.VELTON_CHANNEL);
     }
 
@@ -156,6 +157,38 @@ public class PluginProtocolHandler {
         Bukkit.getMessenger().unregisterIncomingPluginChannel(plugin, HandShakerPlugin.MODS_CHANNEL);
         Bukkit.getMessenger().unregisterIncomingPluginChannel(plugin, HandShakerPlugin.INTEGRITY_CHANNEL);
         Bukkit.getMessenger().unregisterIncomingPluginChannel(plugin, HandShakerPlugin.VELTON_CHANNEL);
+    }
+
+    public void sendChallenge(Player player) {
+        String challenge = payloadValidator.issueChallenge(player.getUniqueId());
+        // Use VarInt encoding to match Minecraft's string serialization
+        byte[] data = encodeString(challenge);
+        player.sendPluginMessage(plugin, HandShakerPlugin.CHALLENGE_CHANNEL, data);
+        if (HandShakerPlugin.DEBUG) {
+            logger.info("[DEBUG] Sent challenge " + challenge + " to " + player.getName());
+        }
+    }
+
+    private byte[] encodeString(String s) {
+        byte[] bytes = s.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        writeVarInt(out, bytes.length);
+        try {
+            out.write(bytes);
+        } catch (java.io.IOException ignored) {}
+        return out.toByteArray();
+    }
+
+    private void writeVarInt(java.io.OutputStream out, int value) {
+        while ((value & 0xFFFFFF80) != 0) {
+            try {
+                out.write((value & 0x7F) | 0x80);
+            } catch (java.io.IOException ignored) {}
+            value >>>= 7;
+        }
+        try {
+            out.write(value & 0x7F);
+        } catch (java.io.IOException ignored) {}
     }
 
     public void clearNonceHistory(UUID playerId) {

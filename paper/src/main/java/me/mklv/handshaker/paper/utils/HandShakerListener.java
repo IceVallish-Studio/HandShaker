@@ -3,10 +3,10 @@ package me.mklv.handshaker.paper.utils;
 import me.mklv.handshaker.paper.HandShakerPlugin;
 import me.mklv.handshaker.paper.gui.GuiSession;
 import me.mklv.handshaker.paper.gui.HandShakerGui;
-import me.mklv.handshaker.paper.utils.PluginProtocolHandler;
 import me.mklv.handshaker.common.utils.ClientInfo;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -38,6 +38,15 @@ public class HandShakerListener implements Listener {
 
         clients.put(playerId, new ClientInfo(Collections.emptySet(), false, false, null, null, null));
         plugin.clearNonceHistory(playerId);
+
+        // Issue challenge to the client with a slight delay to ensure client is ready
+        if (plugin.getProtocolHandler() != null) {
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (player.isOnline()) {
+                    plugin.getProtocolHandler().sendChallenge(player);
+                }
+            }, 5L);
+        }
         
         // Record join time for debug timing
         plugin.recordPlayerJoin(playerId);

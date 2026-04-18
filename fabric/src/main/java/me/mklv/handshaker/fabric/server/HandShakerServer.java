@@ -263,6 +263,7 @@ public class HandShakerServer implements DedicatedServerModInitializer {
         PayloadTypeRegistry.registerServerboundPlay(HandShaker.ModsListPayload.TYPE, HandShaker.ModsListPayload.CODEC);
         PayloadTypeRegistry.registerServerboundPlay(HandShaker.IntegrityPayload.TYPE, HandShaker.IntegrityPayload.CODEC);
         PayloadTypeRegistry.registerServerboundPlay(VeltonPayload.TYPE, VeltonPayload.CODEC);
+        PayloadTypeRegistry.registerClientboundPlay(HandShaker.HandshakeChallengePayload.TYPE, HandShaker.HandshakeChallengePayload.CODEC);
 
         // Register payload handlers
         ServerPlayNetworking.registerGlobalReceiver(HandShaker.ModsListPayload.TYPE, (payload, context) -> {
@@ -323,6 +324,9 @@ public class HandShakerServer implements DedicatedServerModInitializer {
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             UUID playerId = handler.player.getUUID();
             payloadValidator.clearNonceHistory(playerId);
+            String challenge = payloadValidator.issueChallenge(playerId);
+            ServerPlayNetworking.send(handler.player, new HandShaker.HandshakeChallengePayload(challenge));
+
             clients.put(playerId, new ClientInfo(Collections.emptySet(), false, false, null, null, null));
 
             scheduleSafely(() -> {
