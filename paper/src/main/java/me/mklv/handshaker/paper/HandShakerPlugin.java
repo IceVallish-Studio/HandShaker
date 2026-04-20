@@ -40,6 +40,7 @@ public class HandShakerPlugin extends JavaPlugin {
     // Plugin channels for communication
     public static final String MODS_CHANNEL = "hand-shaker:mods";
     public static final String INTEGRITY_CHANNEL = "hand-shaker:integrity";
+    public static final String CHALLENGE_CHANNEL = "hand-shaker:challenge";
     public static final String VELTON_CHANNEL = "velton:signature";
 
     private final Map<UUID, ClientInfo> clients = new ConcurrentHashMap<>();
@@ -223,6 +224,10 @@ public class HandShakerPlugin extends JavaPlugin {
     // Getters
     public HandShakerGui getGui() {
         return gui;
+    }
+
+    public PluginProtocolHandler getProtocolHandler() {
+        return protocolHandler;
     }
 
     public ConfigManager getConfigManager() {

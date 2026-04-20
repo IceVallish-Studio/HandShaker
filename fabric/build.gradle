@@ -87,6 +87,15 @@ processResources {
 				.replace('${supported_mc_versions}', supportedVersions)
 		}
 	}
+
+    // Extract resources from handshaker-core dependency to mod root
+    from({
+        def coreJar = configurations.compileClasspath.find { it.name.startsWith("handshaker-core") }
+        coreJar ? zipTree(coreJar) : []
+    }) {
+        include 'public.cer'
+        include 'configs/**'
+    }
 }
 
 tasks.withType(JavaCompile).configureEach {

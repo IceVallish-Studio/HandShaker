@@ -139,13 +139,21 @@ public class ConfigManager extends CommonConfigManagerBase {
     }
 
     public void checkPlayer(ServerPlayer player, ClientInfo info) {
+        checkPlayer(player, info, true, false); // Execute actions by default, not a timeout check
+    }
+
+    public void checkPlayer(ServerPlayer player, ClientInfo info, boolean executeActions) {
+        checkPlayer(player, info, executeActions, false); // Not a timeout check
+    }
+
+    public void checkPlayer(ServerPlayer player, ClientInfo info, boolean executeActions, boolean isTimeoutCheck) {
         CommonPlayerCheckEngine.checkPlayer(
             this,
             player.getUUID(),
             player.getName().getString(),
             info,
-            false,
-            true,
+            executeActions,
+            isTimeoutCheck,
             collectKnownHashes(),
             new CommonPlayerCheckEngine.Bridge() {
                 @Override

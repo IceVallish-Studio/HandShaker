@@ -21,6 +21,45 @@ public class HandShaker implements ClientModInitializer {
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 	private final ClientHashPayloadService payloadService = new ClientHashPayloadService();
 	private final CommonClientHandshakeOrchestrator handshakeOrchestrator = new CommonClientHandshakeOrchestrator();
+
+	private final CommonClientHandshakeOrchestrator.PayloadProvider payloadProvider = new CommonClientHandshakeOrchestrator.PayloadProvider() {
+		@Override
+		public CommonClientHashPayloadService.ModListData getModListData() {
+			ClientHashPayloadService.ModListData data = payloadService.getOrBuildModListData();
+			return new CommonClientHashPayloadService.ModListData(data.transportPayload(), data.modListHash());
+		}
+
+		@Override
+		public CommonClientHashPayloadService.IntegrityData getIntegrityData() {
+			ClientHashPayloadService.IntegrityData data = payloadService.getOrBuildIntegrityData();
+			return new CommonClientHashPayloadService.IntegrityData(data.signature(), data.jarHash());
+		}
+	};
+
+	private final CommonClientHandshakeOrchestrator.Sender senderWrapper = new CommonClientHandshakeOrchestrator.Sender() {
+		@Override
+		public void sendModList(String transportPayload, String modListHash, String nonce) {
+			ClientPlayNetworking.send(new ModsListPayload(transportPayload, modListHash, nonce));
+		}
+
+		@Override
+		public void sendIntegrity(byte[] signature, String jarHash, String nonce) {
+			ClientPlayNetworking.send(new IntegrityPayload(signature, jarHash, nonce));
+		}
+	};
+
+	private final CommonClientHandshakeOrchestrator.Logger loggerWrapper = new CommonClientHandshakeOrchestrator.Logger() {
+		@Override
+		public void info(String format, Object... args) {
+			LOGGER.info(format, args);
+		}
+
+		@Override
+		public void warn(String message) {
+			LOGGER.warn(message);
+		}
+	};
+
 	@Override
 	public void onInitializeClient() {
 		LOGGER.info("HandShaker client initializing");
@@ -29,53 +68,36 @@ public class HandShaker implements ClientModInitializer {
 		// Register payload types for 1.21 custom payload system
 		PayloadTypeRegistry.registerServerboundPlay(ModsListPayload.TYPE, ModsListPayload.CODEC);
 		PayloadTypeRegistry.registerServerboundPlay(IntegrityPayload.TYPE, IntegrityPayload.CODEC);
+		PayloadTypeRegistry.registerClientboundPlay(HandshakeChallengePayload.TYPE, HandshakeChallengePayload.CODEC);
+
+		// Handle challenge from server
+		ClientPlayNetworking.registerGlobalReceiver(HandshakeChallengePayload.TYPE, (payload, context) -> {
+			context.client().execute(() -> {
+				LOGGER.info("Received challenge packet (Record): {}", payload.challenge());
+				handshakeOrchestrator.onChallenge(payload.challenge(), this::isConnectionReady, payloadProvider, senderWrapper, loggerWrapper);
+			});
+		});
 
 		// Register event handlers to send data on server join
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
-			handshakeOrchestrator.onJoin(
-				this::isConnectionReady,
-				new CommonClientHandshakeOrchestrator.PayloadProvider() {
-					@Override
-					public CommonClientHashPayloadService.ModListData getModListData() {
-						ClientHashPayloadService.ModListData data = payloadService.getOrBuildModListData();
-						return new CommonClientHashPayloadService.ModListData(data.transportPayload(), data.modListHash());
-					}
-
-					@Override
-					public CommonClientHashPayloadService.IntegrityData getIntegrityData() {
-						ClientHashPayloadService.IntegrityData data = payloadService.getOrBuildIntegrityData();
-						return new CommonClientHashPayloadService.IntegrityData(data.signature(), data.jarHash());
-					}
-				},
-				new CommonClientHandshakeOrchestrator.Sender() {
-					@Override
-					public void sendModList(String transportPayload, String modListHash, String nonce) {
-						ClientPlayNetworking.send(new ModsListPayload(transportPayload, modListHash, nonce));
-					}
-
-					@Override
-					public void sendIntegrity(byte[] signature, String jarHash, String nonce) {
-						ClientPlayNetworking.send(new IntegrityPayload(signature, jarHash, nonce));
-					}
-				},
-				new CommonClientHandshakeOrchestrator.Logger() {
-					@Override
-					public void info(String format, Object... args) {
-						LOGGER.info(format, args);
-					}
-
-					@Override
-					public void warn(String message) {
-						LOGGER.warn(message);
-					}
-				}
-			);
+			client.execute(() -> {
+				LOGGER.info("JOIN event triggered, current connection state: ready={}", isConnectionReady());
+				handshakeOrchestrator.onJoin(this::isConnectionReady, payloadProvider, senderWrapper, loggerWrapper);
+			});
 		});
 	}
 
 	private boolean isConnectionReady() {
 		Minecraft client = Minecraft.getInstance();
 		return client != null && client.getConnection() != null;
+	}
+
+	public record HandshakeChallengePayload(String challenge) implements CustomPacketPayload {
+		public static final CustomPacketPayload.Type<HandshakeChallengePayload> TYPE = PayloadTypeCompat.payloadType(MOD_ID, "challenge");
+		public static final StreamCodec<ByteBuf, HandshakeChallengePayload> CODEC = StreamCodec.composite(
+				ByteBufCodecs.STRING_UTF8, HandshakeChallengePayload::challenge,
+				HandshakeChallengePayload::new);
+		@Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
 	}
 
 	public record ModsListPayload(String mods, String modListHash, String nonce) implements CustomPacketPayload {
