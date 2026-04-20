@@ -12,6 +12,7 @@ import me.mklv.handshaker.common.utils.ClientInfo;
 import me.mklv.handshaker.common.utils.LoggerAdapter;
 import me.mklv.handshaker.common.protocols.CollectKnownHashes;
 import me.mklv.handshaker.common.utils.ModCache;
+import me.mklv.handlib.neoforge.PermissionsAdapter;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.MinecraftServer;
 import net.neoforged.fml.loading.FMLPaths;
@@ -228,7 +229,7 @@ public class ConfigManager extends CommonConfigManagerBase {
 
                 @Override
                 public boolean hasBypassPermission() {
-                    return player.hasPermissions(4);
+                    return PermissionsAdapter.checkPermission(player, "handshaker.bypass");
                 }
             }
         );

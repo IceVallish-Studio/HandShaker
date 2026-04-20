@@ -28,6 +28,6 @@ side="BOTH"
 [[dependencies.hand_shaker]]
 modId = "handlib"
 type = "required"
-versionRange = "[0.0.1,)"
+versionRange = "[0.0.3,)"
 ordering = "NONE"
 side = "BOTH"
