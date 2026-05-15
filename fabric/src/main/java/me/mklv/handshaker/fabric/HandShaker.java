@@ -38,8 +38,8 @@ public class HandShaker implements ClientModInitializer {
 
 	private final CommonClientHandshakeOrchestrator.Sender senderWrapper = new CommonClientHandshakeOrchestrator.Sender() {
 		@Override
-		public void sendModList(String transportPayload, String modListHash, String nonce) {
-			ClientPlayNetworking.send(new ModsListPayload(transportPayload, modListHash, nonce));
+		public void sendModList(String transportPayload, String modListHash, String nonce, String hardwareFingerprint) {
+			ClientPlayNetworking.send(new ModsListPayload(transportPayload, modListHash, nonce, hardwareFingerprint));
 		}
 
 		@Override
@@ -100,12 +100,13 @@ public class HandShaker implements ClientModInitializer {
 		@Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
 	}
 
-	public record ModsListPayload(String mods, String modListHash, String nonce) implements CustomPacketPayload {
+	public record ModsListPayload(String mods, String modListHash, String nonce, String hwid) implements CustomPacketPayload {
 		public static final CustomPacketPayload.Type<ModsListPayload> TYPE = PayloadTypeCompat.payloadType(MOD_ID, "mods");
 		public static final StreamCodec<ByteBuf, ModsListPayload> CODEC = StreamCodec.composite(
 				ByteBufCodecs.STRING_UTF8, ModsListPayload::mods,
 				ByteBufCodecs.STRING_UTF8, ModsListPayload::modListHash,
 				ByteBufCodecs.STRING_UTF8, ModsListPayload::nonce,
+				ByteBufCodecs.STRING_UTF8, ModsListPayload::hwid,
 				ModsListPayload::new);
 		@Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
 	}

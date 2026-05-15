@@ -193,18 +193,18 @@ public class HandShakerServerMod {
                 }
 
                 @Override
-                public void syncPlayerMods(UUID playerId, String playerName, Set<String> mods) {
+                public void syncPlayerMods(UUID playerId, String playerName, Set<String> mods, String hardwareFingerprint) {
                     if (playerHistoryDb != null) {
                         if (configManager.isAsyncDatabaseOperations() && configManager.isRuntimeCache()) {
                             submitSafely(() -> {
                                 try {
-                                    playerHistoryDb.syncPlayerMods(playerId, playerName, mods);
+                                    playerHistoryDb.syncPlayerMods(playerId, playerName, mods, hardwareFingerprint);
                                 } catch (Exception e) {
                                     LOGGER.warn("Failed to async-sync player mods: {}", e.getMessage());
                                 }
                             });
                         } else {
-                            playerHistoryDb.syncPlayerMods(playerId, playerName, mods);
+                            playerHistoryDb.syncPlayerMods(playerId, playerName, mods, hardwareFingerprint);
                         }
                     }
                 }
@@ -238,7 +238,8 @@ public class HandShakerServerMod {
             if (!(context.player() instanceof ServerPlayer player)) return;
             try {
                 ValidationResult result = payloadValidator.validateModList(
-                    player.getUUID(), player.getName().getString(), payload.mods(), payload.modListHash(), payload.nonce());
+                    player.getUUID(), player.getName().getString(), payload.mods(), payload.modListHash(), payload.nonce(), payload.hwid());
+
                 
                 if (!result.success) {
                     player.connection.disconnect(Component.literal(result.errorMessage));
@@ -460,13 +461,14 @@ public class HandShakerServerMod {
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    public record ModsListPayload(String mods, String modListHash, String nonce) implements CustomPacketPayload {
+    public record ModsListPayload(String mods, String modListHash, String nonce, String hwid) implements CustomPacketPayload {
         public static final CustomPacketPayload.Type<ModsListPayload> TYPE = PayloadTypeCompat.payloadType("hand-shaker", "mods");
     
         public static final StreamCodec<ByteBuf, ModsListPayload> CODEC = StreamCodec.composite(
                 ByteBufCodecs.STRING_UTF8, ModsListPayload::mods,
                 ByteBufCodecs.STRING_UTF8, ModsListPayload::modListHash,
                 ByteBufCodecs.STRING_UTF8, ModsListPayload::nonce,
+                ByteBufCodecs.STRING_UTF8, ModsListPayload::hwid,
                 ModsListPayload::new);
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
