@@ -16,6 +16,7 @@ base {
 }
 
 repositories {
+    mavenLocal()
     mavenCentral()
 
     maven {

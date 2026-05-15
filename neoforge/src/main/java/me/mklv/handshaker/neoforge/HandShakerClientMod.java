@@ -65,8 +65,8 @@ public class HandShakerClientMod {
             payloadProvider,
             new CommonClientHandshakeOrchestrator.Sender() {
                 @Override
-                public void sendModList(String transportPayload, String modListHash, String nonce) {
-                    context.reply(new HandShakerServerMod.ModsListPayload(transportPayload, modListHash, nonce));
+                public void sendModList(String transportPayload, String modListHash, String nonce, String hardwareFingerprint) {
+                    context.reply(new HandShakerServerMod.ModsListPayload(transportPayload, modListHash, nonce, hardwareFingerprint));
                 }
 
                 @Override
@@ -85,8 +85,8 @@ public class HandShakerClientMod {
             payloadProvider,
             new CommonClientHandshakeOrchestrator.Sender() {
                 @Override
-                public void sendModList(String transportPayload, String modListHash, String nonce) {
-                    sendPacket(event, new HandShakerServerMod.ModsListPayload(transportPayload, modListHash, nonce));
+                public void sendModList(String transportPayload, String modListHash, String nonce, String hardwareFingerprint) {
+                    sendPacket(event, new HandShakerServerMod.ModsListPayload(transportPayload, modListHash, nonce, hardwareFingerprint));
                 }
 
                 @Override

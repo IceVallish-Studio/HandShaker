@@ -193,18 +193,18 @@ public class HandShakerServer implements DedicatedServerModInitializer {
                 }
 
                 @Override
-                public void syncPlayerMods(UUID playerId, String playerName, Set<String> mods) {
+                public void syncPlayerMods(UUID playerId, String playerName, Set<String> mods, String hardwareFingerprint) {
                     if (playerHistoryDb != null) {
                         if (configManager.isAsyncDatabaseOperations() && configManager.isRuntimeCache()) {
                             submitSafely(() -> {
                                 try {
-                                    playerHistoryDb.syncPlayerMods(playerId, playerName, mods);
+                                    playerHistoryDb.syncPlayerMods(playerId, playerName, mods, hardwareFingerprint);
                                 } catch (Exception e) {
                                     LOGGER.warn("Failed to async-sync player mods: {}", e.getMessage());
                                 }
                             });
                         } else {
-                            playerHistoryDb.syncPlayerMods(playerId, playerName, mods);
+                            playerHistoryDb.syncPlayerMods(playerId, playerName, mods, hardwareFingerprint);
                         }
                     }
                 }
@@ -271,7 +271,7 @@ public class HandShakerServer implements DedicatedServerModInitializer {
             String playerName = player.getName().getString();
             try {
                 ValidationResult result = payloadValidator.validateModList(
-                    player.getUUID(), playerName, payload.mods(), payload.modListHash(), payload.nonce());
+                    player.getUUID(), playerName, payload.mods(), payload.modListHash(), payload.nonce(), payload.hwid());
                 
                 if (!result.success) {
                     player.connection.disconnect(Component.literal(result.errorMessage));

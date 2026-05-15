@@ -109,12 +109,12 @@ public class PluginProtocolHandler {
                 }
 
                 @Override
-                public void syncPlayerMods(UUID playerId, String playerName, Set<String> mods) {
+                public void syncPlayerMods(UUID playerId, String playerName, Set<String> mods, String hardwareFingerprint) {
                     PlayerHistoryDatabase db = plugin.getPlayerHistoryDb();
                     if (db != null) {
                         plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
                             try {
-                                db.syncPlayerMods(playerId, playerName, mods);
+                                db.syncPlayerMods(playerId, playerName, mods, hardwareFingerprint);
                             } catch (Exception e) {
                                 logger.warning("Failed to sync player mods to database: " + e.getMessage());
                             }
@@ -248,11 +248,21 @@ public class PluginProtocolHandler {
 
             String modListHash;
             String nonce;
+            String hwid = null;
             if (thirdResult != null && thirdResult.value != null && !((String) thirdResult.value).isEmpty()) {
                 modListHash = secondValue;
                 nonce = (String) thirdResult.value;
                 if (HandShakerPlugin.DEBUG) {
                     logger.info("[DEBUG] Decoded mod list payload from " + player.getName() + " using MODERN format (mods+hash+nonce)");
+                }
+                
+                // Try to decode hardware fingerprint if present (4th string)
+                PayloadDecoder.DecodeResult fourthResult = payloadDecoder.decodeStringWithOffset(data, thirdResult.offset);
+                if (fourthResult != null && fourthResult.value != null) {
+                    hwid = (String) fourthResult.value;
+                    if (HandShakerPlugin.DEBUG) {
+                        logger.info("[DEBUG] Decoded hardware fingerprint from " + player.getName() + ": " + hwid);
+                    }
                 }
             } else {
                 if (isSha256Hex(secondValue)) {
@@ -277,7 +287,7 @@ public class PluginProtocolHandler {
 
             // Delegate to unified validator
             ValidationResult result = payloadValidator.validateModList(player.getUniqueId(), player.getName(), 
-                payload, modListHash, nonce);
+                payload, modListHash, nonce, hwid);
             if (!result.success) {
                 kickPlayer(player, result.errorMessage);
             }
