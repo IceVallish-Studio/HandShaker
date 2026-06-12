@@ -1,9 +1,10 @@
-# 🤝 HandShaker 7.0.0
+# 🤝 HandShaker 7.0.1
 
 > [!CAUTION]
 > **This is experimental branch of future version of the mod and can cause issue or work incorrect.**
 > 
-> **If you want to test or help to contribute, there is a test versions of mod** [hand-shaker.zip](https://github.com/user-attachments/files/25254447/hand-shaker.zip) (Updated 12.02.26)
+> **If you want to test or help to contribute, there is a test versions of mod** ~~[hand-shaker.zip](https://github.com/user-attachments/files/25254447/hand-shaker.zip) (Updated 12.02.26)~~
+Now 7.0.1 is on modrinth & CF
 >
 > **The reason of not publishing inside "Releases" tab is to not confuse beginners and because every jar must be signed properly**
 
